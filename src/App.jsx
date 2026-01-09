@@ -33,25 +33,30 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// --- DATOS DEL JUEGO (DICCIONARIO FRANCÉS) ---
-const FRENCH_NUMBERS = [
-  { val: 1, text: "Un" }, { val: 2, text: "Deux" }, { val: 3, text: "Trois" }, 
-  { val: 4, text: "Quatre" }, { val: 5, text: "Cinq" }, { val: 6, text: "Six" }, 
-  { val: 7, text: "Sept" }, { val: 8, text: "Huit" }, { val: 9, text: "Neuf" }, 
-  { val: 10, text: "Dix" }, { val: 11, text: "Onze" }, { val: 12, text: "Douze" }, 
-  { val: 13, text: "Treize" }, { val: 14, text: "Quatorze" }, { val: 15, text: "Quinze" }, 
-  { val: 16, text: "Seize" }, { val: 17, text: "Dix-sept" }, { val: 18, text: "Dix-huit" }, 
-  { val: 19, text: "Dix-neuf" }, { val: 20, text: "Vingt" }, { val: 21, text: "Vingt et un" },
-  { val: 30, text: "Trente" }, { val: 32, text: "Trente-deux" },
-  { val: 40, text: "Quarante" }, { val: 45, text: "Quarante-cinq" },
-  { val: 50, text: "Cinquante" }, { val: 55, text: "Cinquante-cinq" },
-  { val: 60, text: "Soixante" }, { val: 69, text: "Soixante-neuf" },
-  { val: 70, text: "Soixante-dix" }, { val: 71, text: "Soixante et onze" }, 
-  { val: 75, text: "Soixante-quinze" }, { val: 80, text: "Quatre-vingts" }, 
-  { val: 81, text: "Quatre-vingt-un" }, { val: 90, text: "Quatre-vingt-dix" }, 
-  { val: 91, text: "Quatre-vingt-onze" }, { val: 99, text: "Quatre-vingt-dix-neuf" }, 
-  { val: 100, text: "Cent" }
-];
+// --- GENERADOR DE NÚMEROS (21 - 69) ---
+const FRENCH_NUMBERS = (() => {
+  const numbers = [];
+  const tens = { 2: "Vingt", 3: "Trente", 4: "Quarante", 5: "Cinquante", 6: "Soixante" };
+  const units = ["", "un", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf"];
+
+  for (let i = 21; i <= 69; i++) {
+    const ten = Math.floor(i / 10); // Obtiene la decena (2, 3, 4...)
+    const unit = i % 10;            // Obtiene la unidad (0, 1, 2...)
+    let text = tens[ten];
+
+    if (unit === 0) {
+      // Caso 30, 40, 50, 60: Se queda solo el nombre de la decena
+    } else if (unit === 1) {
+      // Caso 21, 31, 41...: Se agrega " et un"
+      text += " et un";
+    } else {
+      // Otros casos: Se agrega guión, ej: "Vingt-deux"
+      text += `-${units[unit]}`;
+    }
+    numbers.push({ val: i, text: text });
+  }
+  return numbers;
+})();
 
 // Generador de preguntas aleatorias
 const generateRound = () => {
