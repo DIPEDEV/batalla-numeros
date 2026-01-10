@@ -78,7 +78,7 @@ export default function App() {
   }
 
   // 5. Pantalla de Juego (Both)
-  if (game.gameData && game.gameData.status === 'playing') {
+  if (game.gameData && (game.gameData.status === 'playing' || game.gameData.status === 'launching')) {
     return (
         <GameScreen 
             user={game.user}

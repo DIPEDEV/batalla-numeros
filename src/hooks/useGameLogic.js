@@ -161,27 +161,34 @@ export function useGameLogic() {
             setLoading(true);
             const gameRef = doc(db, 'games', activeGameId);
             
-            // Generate Initial Round for everyone
-            const initialRound = generateRound(lobbyNumberRange);
-
-            // Calculate End Time
-            const endTime = new Date();
-            endTime.setMinutes(endTime.getMinutes() + lobbyDurationMinutes);
-
+            // 1. Set status to launching (trigger countdown)
             await updateDoc(gameRef, {
-                status: 'playing',
-                startTime: serverTimestamp(),
-                endTime: endTime,
-                currentRound: initialRound,
-                maxPlayers: lobbyMaxPlayers,
-                // Save Host Preference & Config
-                hostPlays: hostPlays, // Important: Save this!
-                config: {
-                    range: lobbyNumberRange,
-                    duration: lobbyDurationMinutes,
-                    hostPlays: hostPlays // Redundant but safe
-                }
+                status: 'launching',
+                launchingAt: serverTimestamp()
             });
+
+            // 2. Wait 3.5 seconds then start for real
+            setTimeout(async () => {
+                const initialRound = generateRound(lobbyNumberRange);
+                // Calculate End Time
+                const now = new Date(); // Use host time as reference
+                const endTime = new Date(now.getTime() + lobbyDurationMinutes * 60000);
+
+                await updateDoc(gameRef, {
+                    status: 'playing',
+                    startTime: serverTimestamp(), // Record actual server start
+                    endTime: endTime,
+                    currentRound: initialRound, // Initial shared round
+                    maxPlayers: lobbyMaxPlayers,
+                    hostPlays: hostPlays,
+                    config: {
+                        range: lobbyNumberRange,
+                        duration: lobbyDurationMinutes,
+                        hostPlays: hostPlays
+                    }
+                });
+            }, 3500);
+
         } catch (err) {
             console.error(err);
             setError("Error al iniciar la partida");
@@ -265,36 +272,16 @@ export function useGameLogic() {
 
   // C. Gameplay Actions
   const handleAnswer = async (selectedVal) => {
-      const correct = selectedVal === gameData.currentRound.targetVal;
+      const isCorrect = selectedVal === (practiceMode ? gameData.currentRound.targetVal : (gameData.players[user.uid]?.currentQuestion?.targetVal || gameData.currentRound.targetVal));
       
-      const now = Date.now();
-      const qStart = gameData.currentRound?.generatedAt || (now - 2000); 
-      const timeTakenSec = Math.max(0, (now - qStart) / 1000);
-
       let points = 0;
-      let potentialPoints = 0;
-
-      // Unified Scoring Logic
-      if (timeTakenSec > 3) {
-          potentialPoints = 200;
-      } else {
-          potentialPoints = Math.floor(500 * Math.exp(-0.3 * timeTakenSec));
-          potentialPoints = Math.max(200, potentialPoints); 
-      }
-
-      if (correct) {
-          points = potentialPoints;
-      } else {
-           // Penalty: Half of what you WOULD have gotten
-           points = -Math.floor(potentialPoints / 2);
-      }
+      if (isCorrect) points = 10; // Simple scoring for now, can be enhanced
 
       // Feedback UI
-      setLocalFeedback({ val: correct ? `+${points}` : `${points}`, type: correct ? 'good' : 'bad' });
+      setLocalFeedback({ val: isCorrect ? `+${points}` : '0', type: isCorrect ? 'good' : 'bad' });
       setTimeout(() => setLocalFeedback(null), 1000);
 
       const nextRound = generateRound(practiceMode ? practiceConfig.numberRange : (gameData?.config?.range || lobbyNumberRange));
-      nextRound.generatedAt = Date.now();
 
       if (practiceMode) {
           setGameData(prev => {
@@ -308,25 +295,24 @@ export function useGameLogic() {
                       }
                   }
               };
-              if (correct) {
+              if (isCorrect) {
                   newState.currentRound = nextRound;
               }
               return newState;
           });
       } else {
+          // Multiplayer Update
+          // If correct: Update Score AND *My* Question
+          // If incorrect: Just feedback (no penalty implemented here yet, or maybe there is)
+          // User asked for independent questions.
+          
+          if (!isCorrect) return; // Do nothing on server if incorrect? Or penalty? keeping simple for now.
+
           const gameRef = doc(db, 'games', activeGameId);
-          const updates = {
-              [`players.${user.uid}.score`]: increment(points)
-          };
-          if (correct) {
-              updates.playersLastCorrect = user.uid;
-              updates.currentRound = nextRound;
-          }
-          try {
-             await updateDoc(gameRef, updates);
-          } catch(e) {
-             console.error("Error updating score", e);
-          }
+          await updateDoc(gameRef, {
+              [`players.${user.uid}.score`]: increment(points),
+              [`players.${user.uid}.currentQuestion`]: nextRound
+          });
       }
   };
 

@@ -55,6 +55,37 @@ export default function GameScreen({
       setShowExitConfirm(false);
   };
 
+  // --- COUNTDOWN OVERLAY ---
+  const [countdown, setCountdown] = useState(3);
+  
+  useEffect(() => {
+     if (gameData.status === 'launching') {
+         setCountdown(3);
+         const timer = setInterval(() => {
+             setCountdown(prev => {
+                if(prev <= 1) {
+                    clearInterval(timer);
+                    return 0; // or 1 depending on UX
+                }
+                return prev - 1;
+             });
+         }, 1000);
+         return () => clearInterval(timer);
+     }
+  }, [gameData.status]);
+
+  if (gameData.status === 'launching') {
+      return (
+          <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 overflow-hidden relative">
+              <div className="absolute top-0 left-0 w-full h-full bg-indigo-600/20 animate-pulse"></div>
+              <div className="text-[15rem] font-black text-white animate-ping-slow drop-shadow-[0_0_50px_rgba(255,255,255,0.5)] z-10">
+                  {countdown}
+              </div>
+              <p className="z-10 text-2xl font-bold text-indigo-300 tracking-[0.5em] mt-8 animate-bounce">PREPARADOS</p>
+          </div>
+      );
+  }
+
   // --- MODO ESPECTADOR (SOLO HOST MULTIPLAYER) ---
   if (isSpectator) {
     return (
