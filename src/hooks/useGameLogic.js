@@ -128,6 +128,63 @@ export function useGameLogic() {
   }, [activeGameId, practiceMode, gameData?.status, practiceConfig.infiniteTime, user?.uid]);
 
 
+    // 5. Question Timeout Logic (5s limit)
+    useEffect(() => {
+        if (!gameData || gameData.status !== 'playing') return;
+
+        const timer = setInterval(() => {
+            const now = Date.now();
+            
+            // Determine current question based on mode
+            const currentQ = practiceMode 
+                ? gameData.currentRound 
+                : (gameData.players[user.uid]?.currentQuestion || gameData.currentRound);
+
+            if (!currentQ || !currentQ.generatedAt) return; // Should exist
+
+            const elapsed = now - currentQ.generatedAt;
+            if (elapsed > 5000) {
+                // TIMEOUT!
+                handleTimeoutPenalty();
+            }
+        }, 500);
+
+        return () => clearInterval(timer);
+    }, [gameData, practiceMode, user?.uid]); // dependency on gameData might be heavy but needed for currentQ updates
+
+    const handleTimeoutPenalty = async () => {
+        const penalty = 200;
+        setLocalFeedback({ val: `-${penalty} (Tiempo)`, type: 'bad' });
+        setTimeout(() => setLocalFeedback(null), 1000);
+
+        const nextRound = generateRound(practiceMode ? practiceConfig.numberRange : (gameData?.config?.range || lobbyNumberRange));
+        nextRound.generatedAt = Date.now();
+
+        if (practiceMode) {
+             setGameData(prev => ({
+                 ...prev,
+                 currentRound: nextRound,
+                 players: {
+                     ...prev.players,
+                     [user.uid]: {
+                         ...prev.players[user.uid],
+                         score: Math.max(0, (prev.players[user.uid].score || 0) - penalty)
+                     }
+                 }
+             }));
+        } else {
+             // Multiplayer Timeout
+             const currentScore = gameData.players[user.uid]?.score || 0;
+             const newScore = Math.max(0, currentScore - penalty);
+             
+             const gameRef = doc(db, 'games', activeGameId);
+             await updateDoc(gameRef, {
+                 [`players.${user.uid}.score`]: newScore,
+                 [`players.${user.uid}.currentQuestion`]: nextRound
+             });
+        }
+    };
+
   // --- ACTIONS ---
 
   // A. Practice Mode
@@ -145,11 +202,12 @@ export function useGameLogic() {
     if (practiceMode) {
         // Init Practice Game
         const initialRound = generateRound(practiceConfig.numberRange);
+        initialRound.generatedAt = Date.now(); // TIMESTAMP ADDED
         setGameData(prev => ({
             ...prev,
             status: 'playing',
             currentRound: initialRound,
-            startedAt: Date.now() // For practice local scoring
+            startedAt: Date.now() 
         }));
         if (!practiceConfig.infiniteTime) {
             setTimeLeft(practiceConfig.duration * 60);
@@ -170,6 +228,8 @@ export function useGameLogic() {
             // 2. Wait 3.5 seconds then start for real
             setTimeout(async () => {
                 const initialRound = generateRound(lobbyNumberRange);
+                initialRound.generatedAt = Date.now(); // TIMESTAMP ADDED
+
                 // Calculate End Time
                 const now = new Date(); // Use host time as reference
                 const endTime = new Date(now.getTime() + lobbyDurationMinutes * 60000);
@@ -269,29 +329,60 @@ export function useGameLogic() {
           setLoading(false);
       }
   };
-
+  
   // C. Gameplay Actions
   const handleAnswer = async (selectedVal) => {
-      const isCorrect = selectedVal === (practiceMode ? gameData.currentRound.targetVal : (gameData.players[user.uid]?.currentQuestion?.targetVal || gameData.currentRound.targetVal));
+      const currentQ = practiceMode 
+            ? gameData.currentRound 
+            : (gameData.players[user.uid]?.currentQuestion || gameData.currentRound);
+            
+      const isCorrect = selectedVal === currentQ.targetVal;
+      
+      const now = Date.now();
+      const qStart = currentQ.generatedAt || now; // Fallback should not happen
+      const timeTakenSec = Math.max(0, (now - qStart) / 1000);
+
+      // 1. Calculate Score (500 -> 0 over 5s)
+      // Formula: 500 - (100 * t). 
+      // At t=0: 500. At t=1: 400. At t=5: 0.
+      let potentialPoints = Math.floor(500 - (100 * timeTakenSec));
+      potentialPoints = Math.max(100, potentialPoints); // Keep a minimum of 100 for correct answers within 5s
+      // Note: If t > 5, timeout handles it. But if user answers at 5.1s before timeout ticks? 
+      // Let's cap at 100 min. Or fail? 
+      // User says: "si no la sacas en 5s te quita 200". 
+      // If they answer at 5.5s, technically they "didn't get it in 5s".
+      // But race condition with timeout effect.
+      // Let's assume if they answer, they get the answer result.
       
       let points = 0;
-      if (isCorrect) points = 10; // Simple scoring for now, can be enhanced
+      if (isCorrect) {
+          points = potentialPoints;
+      } else {
+          // Penalty: Half of potential
+          points = -Math.floor(potentialPoints / 2);
+      }
 
       // Feedback UI
-      setLocalFeedback({ val: isCorrect ? `+${points}` : '0', type: isCorrect ? 'good' : 'bad' });
+      setLocalFeedback({ val: isCorrect ? `+${points}` : `${points}`, type: isCorrect ? 'good' : 'bad' });
       setTimeout(() => setLocalFeedback(null), 1000);
-
-      const nextRound = generateRound(practiceMode ? practiceConfig.numberRange : (gameData?.config?.range || lobbyNumberRange));
-
+      
       if (practiceMode) {
+          // Practice Logic
+          // If correct -> New Question. If incorrect -> Same question.
+          const nextRound = generateRound(practiceConfig.numberRange);
+          nextRound.generatedAt = Date.now();
+
           setGameData(prev => {
+              const currentScore = prev.players[user.uid].score || 0;
+              const newScore = Math.max(0, currentScore + points);
+
               const newState = {
                   ...prev,
                   players: {
                       ...prev.players,
                       [user.uid]: {
                           ...prev.players[user.uid],
-                          score: (prev.players[user.uid].score || 0) + points
+                          score: newScore
                       }
                   }
               };
@@ -301,18 +392,23 @@ export function useGameLogic() {
               return newState;
           });
       } else {
-          // Multiplayer Update
-          // If correct: Update Score AND *My* Question
-          // If incorrect: Just feedback (no penalty implemented here yet, or maybe there is)
-          // User asked for independent questions.
-          
-          if (!isCorrect) return; // Do nothing on server if incorrect? Or penalty? keeping simple for now.
+          // Multiplayer Logic
+          // If correct -> New Question. If incorrect -> Same question.
+          const currentScore = gameData.players[user.uid]?.score || 0;
+          const newScore = Math.max(0, currentScore + points);
 
           const gameRef = doc(db, 'games', activeGameId);
-          await updateDoc(gameRef, {
-              [`players.${user.uid}.score`]: increment(points),
-              [`players.${user.uid}.currentQuestion`]: nextRound
-          });
+          const updates = {
+              [`players.${user.uid}.score`]: newScore,
+          };
+
+          if (isCorrect) {
+               const nextRound = generateRound(gameData?.config?.range || lobbyNumberRange);
+               nextRound.generatedAt = Date.now();
+               updates[`players.${user.uid}.currentQuestion`] = nextRound;
+          }
+          
+          await updateDoc(gameRef, updates);
       }
   };
 

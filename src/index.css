@@ -8,7 +8,7 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-white overflow-hidden;
+    @apply bg-slate-950 text-white overflow-hidden select-none;
     background-image: 
       radial-gradient(circle at 15% 50%, rgba(124, 58, 237, 0.15) 0%, transparent 25%), 
       radial-gradient(circle at 85% 30%, rgba(236, 72, 153, 0.15) 0%, transparent 25%);
