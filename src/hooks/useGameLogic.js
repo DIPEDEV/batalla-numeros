@@ -1,22 +1,46 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
-  getFirestore, collection, doc, setDoc, getDoc, onSnapshot, updateDoc, 
-  arrayUnion, arrayRemove, deleteField, serverTimestamp, increment, runTransaction 
+import {
+  collection,
+  addDoc,
+  doc,
+  onSnapshot,
+  updateDoc,
+  deleteDoc,
+  getDoc,
+  setDoc,
+  query,
+  where,
+  getDocs,
+  runTransaction,
+  serverTimestamp,
+  increment
 } from 'firebase/firestore';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithPopup, signOut, setPersistence, browserLocalPersistence, updateProfile } from 'firebase/auth'; // Added updateProfile
+import { auth, db, googleProvider, appleProvider, storage } from '../lib/firebase'; // Added storage
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'; // Added storage functions
 import { generateRound } from '../lib/frenchNumbers';
 
 export function useGameLogic() {
   // --- User & Auth ---
   const [user, setUser] = useState(null);
   const [username, setUsername] = useState('');
+  const [needsUsername, setNeedsUsername] = useState(false); // Google login pending username
+  const [userStats, setUserStats] = useState(null); // Added userStats
 
   // --- Navigation / Inputs ---
   const [gameIdInput, setGameIdInput] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(null); // 'google', 'apple', 'create', 'join', 'register', 'cleanup', 'upload'
   const [copied, setCopied] = useState(false);
+  const [lastReactionId, setLastReactionId] = useState(null); // Local tracker for reactions
+
+  // Auto-clear error after 3 seconds
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(''), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
 
   // --- Game State ---
   const [activeGameId, setActiveGameId] = useState(null);
@@ -25,13 +49,13 @@ export function useGameLogic() {
 
   // --- Lobby Config (Host) ---
   const [lobbyMaxPlayers, setLobbyMaxPlayers] = useState(10);
-  const [lobbyDurationMinutes, setLobbyDurationMinutes] = useState(3);
+  const [lobbyDurationMinutes, setLobbyDurationMinutes] = useState(1);
   const [lobbyNumberRange, setLobbyNumberRange] = useState("0-69");
   const [hostPlays, setHostPlays] = useState(true);
 
   // --- Practice Config ---
   const [practiceConfig, setPracticeConfig] = useState({
-      duration: 3,
+      duration: 1,
       infiniteTime: false,
       showCheatSheet: false,
       numberRange: "0-69"
@@ -40,21 +64,80 @@ export function useGameLogic() {
   // --- In-Game Local State ---
   const [timeLeft, setTimeLeft] = useState(0);
   const [localFeedback, setLocalFeedback] = useState(null);
+  const [combo, setCombo] = useState(0); // Added Combo State
   
   // Refs for timers
   const timerRef = useRef(null);
   const roundTimerRef = useRef(null);
+  const statsRecordedRef = useRef(false); // To prevent double counting stats
 
-  // 1. Auth Init
+  // 1. Unified Auth Init
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      if (u) {
-        setUser(u);
-      } else {
-        signInAnonymously(auth).catch((err) => console.error("Auth error:", err));
-      }
-    });
-    return () => unsub();
+    let unsubscribe = () => {};
+
+    const initAuth = async () => {
+        try {
+            await setPersistence(auth, browserLocalPersistence);
+            // Popup flow does not need getRedirectResult
+        } catch (err) {
+            console.error("Auth Persistence Error:", err);
+        }
+
+        unsubscribe = onAuthStateChanged(auth, async (u) => {
+            if (u) {
+                // User state changed
+                setUser(u);
+                
+                if (!u.isAnonymous) {
+                     setLoading('fetching_profile');
+                     try {
+                        const userDocRef = doc(db, 'users', u.uid);
+                        
+                        // Real-time listener for User Profile (Stats, Username, etc)
+                        // We attach this listener and store unsubscribe function?
+                        // Actually, since this is inside onAuthStateChanged, which is inside useEffect...
+                        // We need to be careful not to create leaks. 
+                        // Simplified approach: simpler onSnapshot, assuming component unmount cleans up auth listener.
+                        // But wait, the parent useEffect unsubs auth listener.
+                        // We need a way to unsub the inner listener too if user changes.
+                        // For simplicity in this functional component: 
+                        // We can't easily unsub inner listener from outer effect return unless we track it in ref.
+                        // But this hook logic is a bit complex.
+                        // Let's just use onSnapshot here. usage of onSnapshot returns an unsub function.
+                        
+                        onSnapshot(userDocRef, (docSnap) => {
+                            if (docSnap.exists()) {
+                                const userData = docSnap.data();
+                                if (userData.username) {
+                                    setUsername(userData.username);
+                                    setNeedsUsername(false);
+                                } else {
+                                    setNeedsUsername(true);
+                                }
+                                setUserStats(userData); // Real-time Stats Update
+                            } else {
+                                console.log("User has no profile in DB");
+                                setNeedsUsername(true);
+                                if (u.displayName) setUsername(u.displayName.split(' ')[0]);
+                            }
+                            setLoading(null);
+                        });
+                        
+                     } catch (err) {
+                         console.error("Error setting up profile listener:", err);
+                         setLoading(null);
+                     }
+                }
+            } else {
+                console.log("AuthStateChanged: No user. Signing in anonymously...");
+                signInAnonymously(auth).catch((err) => console.error("Anonymous Auth Error:", err));
+            }
+        });
+    };
+
+    initAuth();
+
+    return () => unsubscribe();
   }, []);
 
   // 2. Persist Username
@@ -78,6 +161,13 @@ export function useGameLogic() {
             const now = Date.now();
             const remaining = Math.max(0, Math.floor((end - now) / 1000));
             setTimeLeft(remaining);
+        }
+
+        // Record Stats when Game Finishes (Once)
+        if (data.status === 'finished' && !statsRecordedRef.current && user && !user.isAnonymous) {
+            const finalScore = data.players[user.uid]?.score || 0;
+            updateUserStats(finalScore);
+            statsRecordedRef.current = true;
         }
       } else {
         setError('La partida ha sido eliminada');
@@ -188,13 +278,25 @@ export function useGameLogic() {
   // --- ACTIONS ---
 
   // A. Practice Mode
-  const enterPracticeMode = () => {
+  const enterPracticeMode = (guestName) => {
+    let currentUser = user;
+    if (!currentUser) {
+        // Create Local Guest
+        currentUser = { 
+            uid: 'guest-' + Date.now(), 
+            isAnonymous: true, 
+            displayName: guestName || "Invitado" 
+        };
+        setUser(currentUser);
+        setUsername(guestName || "Invitado");
+    }
+
     setPracticeMode(true);
     setGameData({
         status: 'setup',
-        players: { [user.uid]: { name: username, score: 0 } },
-        playerList: [user.uid],
-        host: user.uid
+        players: { [currentUser.uid]: { name: guestName || username || "Invitado", score: 0 } },
+        playerList: [currentUser.uid],
+        host: currentUser.uid
     });
   };
 
@@ -215,8 +317,10 @@ export function useGameLogic() {
     } else {
         // Start Multiplayer Game (Host Only)
         if (!activeGameId) return;
+        // Start Multiplayer Game (Host Only)
+        if (!activeGameId) return;
         try {
-            setLoading(true);
+            setLoading('launching');
             const gameRef = doc(db, 'games', activeGameId);
             
             // 1. Set status to launching (trigger countdown)
@@ -260,10 +364,21 @@ export function useGameLogic() {
 
   // B. Multiplayer Actions
   const createGame = async () => {
+    // Guests CAN host games now ("Todas las capacidades")
+    if (!user) { setError("Esperando conexión..."); return; }
     if (!username.trim()) { setError("Ingresa un nombre"); return; }
-    setLoading(true);
+    setLoading('create');
     try {
-        const newGameId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        // Validation for Anonymous users: Cannot use reserved names
+        if (user.isAnonymous) {
+             const usernameRef = doc(db, 'usernames', username.toLowerCase());
+             const usernameDoc = await getDoc(usernameRef);
+             if (usernameDoc.exists()) {
+                 throw "Este nombre está reservado por un usuario registrado.";
+             }
+        }
+
+                const newGameId = Math.random().toString(36).substring(2, 8).toUpperCase();
         const gameRef = doc(db, 'games', newGameId);
         
         await setDoc(gameRef, {
@@ -274,6 +389,7 @@ export function useGameLogic() {
             players: {
                 [user.uid]: {
                     name: username,
+                    photoURL: user.photoURL || null, // Include Avatar
                     score: 0,
                     joinedAt: serverTimestamp()
                 }
@@ -288,15 +404,17 @@ export function useGameLogic() {
         setPracticeMode(false);
     } catch (err) {
         console.error(err);
-        setError("Error al crear la sala");
+        setError(typeof err === 'string' ? err : "Error al crear la sala");
     } finally {
-        setLoading(false);
+        setLoading(null);
     }
   };
 
   const joinGame = async () => {
+      // Guests CAN join games.
+      if (!user) { setError("Esperando conexión..."); return; }
       if (!gameIdInput.trim() || !username.trim()) return;
-      setLoading(true);
+      setLoading('join');
       const targetId = gameIdInput.toUpperCase();
 
       try {
@@ -310,10 +428,25 @@ export function useGameLogic() {
               if (data.status !== 'lobby') throw "La partida ya ha comenzado";
               if (data.playerList.length >= (data.maxPlayers || 30)) throw "Sala llena";
 
+              // Unique Name Check within Game
+              const existingPlayers = Object.values(data.players || {});
+              const nameTaken = existingPlayers.some(p => p.name.toLowerCase() === username.toLowerCase() && p.joinedAt); // Ensure it's not a ghost
+              if (nameTaken) throw "Ya hay un jugador con ese nombre en esta sala.";
+
+              // Validation for Anonymous users: Cannot use reserved global names
+              if (user.isAnonymous) {
+                   const usernameRef = doc(db, 'usernames', username.toLowerCase());
+                   const usernameDoc = await transaction.get(usernameRef);
+                   if (usernameDoc.exists()) {
+                       throw "Este nombre está reservado por un usuario registrado.";
+                   }
+              }
+
               transaction.update(gameRef, {
                   playerList: arrayUnion(user.uid),
                   [`players.${user.uid}`]: {
                       name: username,
+                      photoURL: user.photoURL || null, // Include Avatar
                       score: 0,
                       joinedAt: serverTimestamp()
                   }
@@ -326,7 +459,7 @@ export function useGameLogic() {
           console.error(err);
           setError(typeof err === 'string' ? err : "No se pudo unir a la sala");
       } finally {
-          setLoading(false);
+          setLoading(null);
       }
   };
   
@@ -355,15 +488,33 @@ export function useGameLogic() {
       // Let's assume if they answer, they get the answer result.
       
       let points = 0;
+      let newCombo = combo;
+
       if (isCorrect) {
-          points = potentialPoints;
+          // Increment Combo
+          newCombo = combo + 1;
+          setCombo(newCombo);
+
+          // Calculate Multiplier (x1.2, x1.4, x1.6, x1.8, x2.0 MAX)
+          // Formula: 1 + (combo * 0.2)
+          const multiplier = 1 + (Math.min(newCombo, 5) * 0.2);
+          
+          points = Math.round(potentialPoints * multiplier);
       } else {
-          // Penalty: Half of potential
+          // Reset Combo
+          newCombo = 0;
+          setCombo(0);
+
+          // Penalty: Half of potential (no multiplier on penalty)
           points = -Math.floor(potentialPoints / 2);
       }
 
       // Feedback UI
-      setLocalFeedback({ val: isCorrect ? `+${points}` : `${points}`, type: isCorrect ? 'good' : 'bad' });
+      const feedbackText = isCorrect 
+          ? `+${points}${newCombo > 0 ? ` (x${(1 + Math.min(newCombo, 5) * 0.2).toFixed(1)})` : ''}` 
+          : `${points}`;
+      
+      setLocalFeedback({ val: feedbackText, type: isCorrect ? 'good' : 'bad' });
       setTimeout(() => setLocalFeedback(null), 1000);
       
       if (practiceMode) {
@@ -430,6 +581,13 @@ export function useGameLogic() {
                   playerList: arrayRemove(user.uid),
                   [`players.${user.uid}`]: deleteField()
               });
+
+              // Cleanup: Just local reset for Anon users.
+              if (user.isAnonymous) {
+                  setUsername(''); 
+                  setNeedsUsername(false); // Can stay false as we use main screen input
+              }
+
           } catch(err) {
               console.error("Error leaving game:", err);
           }
@@ -441,6 +599,8 @@ export function useGameLogic() {
       setPracticeMode(false);
       setTimeLeft(0);
       setGameIdInput('');
+      setCombo(0); // Reset combo
+      statsRecordedRef.current = false; // Reset for next game
   };
 
   const copyCode = () => {
@@ -449,9 +609,274 @@ export function useGameLogic() {
       setTimeout(() => setCopied(false), 2000);
   };
 
-  return {
+  const sendReaction = async (emojiType) => {
+      if (!activeGameId || practiceMode) return;
+      
+      // Rate limit locally? Maybe.
+      // Firestore write:
+      try {
+          const gameRef = doc(db, 'games', activeGameId);
+          await updateDoc(gameRef, {
+              latestReaction: {
+                  type: emojiType,
+                  id: Math.random(), // Force change
+                  timestamp: Date.now(),
+                  sender: username // Added sender name
+              }
+          });
+      } catch (err) {
+          console.error("Error sending reaction:", err);
+      }
+  };
+
+    // 12. Google Auth & Username Registration
+    // 12. Google Auth & Username Registration
+    const loginWithGoogle = async () => {
+        setLoading('google');
+        setError('');
+        try {
+            await signInWithPopup(auth, googleProvider);
+        } catch (err) {
+            console.error("Google login error:", err);
+            if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+                setError("Error al iniciar con Google: " + err.message);
+            }
+            setLoading(null);
+        }
+    };
+
+    const loginWithApple = async () => {
+        setLoading('apple');
+        setError('');
+        try {
+            await signInWithPopup(auth, appleProvider);
+        } catch (err) {
+            console.error("Apple login error:", err);
+            if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
+                setError("Error al iniciar con Apple: " + err.message);
+            }
+            setLoading(null);
+        }
+    };
+
+    const registerUsername = async (chosenName) => {
+        if (!user || user.isAnonymous) return; // Guests don't register
+        const lowerName = chosenName.trim().toLowerCase();
+        if (lowerName.length < 3) {
+            setError("El nombre debe tener al menos 3 caracteres");
+            return;
+        }
+
+        setLoading('register');
+        try {
+            await runTransaction(db, async (transaction) => {
+                // 1. Check if name is taken by a REGISTERED user (Global Reservation)
+                const usernameRef = doc(db, 'usernames', lowerName);
+                const usernameDoc = await transaction.get(usernameRef);
+                
+                if (usernameDoc.exists()) {
+                    throw "Este nombre pertenece a un usuario registrado. Elige otro.";
+                }
+                
+                const userRef = doc(db, 'users', user.uid);
+                
+                if (user.isAnonymous) {
+                    // Anonymous: Do NOT write to DB. Just set local state.
+                    // Validation passed (not registered), so we are good.
+                } else {
+                    // Registered: Reserve globally
+                    transaction.set(usernameRef, { uid: user.uid });
+                    transaction.set(userRef, { 
+                        username: chosenName,
+                        email: user.email,
+                        createdAt: serverTimestamp() 
+                    }, { merge: true });
+                }
+            });
+
+            setUsername(chosenName);
+            setNeedsUsername(false);
+            setError('');
+        } catch (err) {
+            console.error("Registration error:", err);
+            setError(typeof err === 'string' ? err : "Error al registrar nombre");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const logout = async () => {
+        if (!user) return;
+        
+        // Auto-cleanup for anonymous users to free up usernames
+        if (user.isAnonymous && username) {
+            setLoading('cleanup');
+            try {
+                // Delete username reservation and user profile
+                const batch = import('firebase/firestore').then(({ writeBatch }) => {
+                });
+                
+                await runTransaction(db, async (transaction) => {
+                     // Check if docs exist before trying to delete? Not strictly needed for delete
+                     const usernameRef = doc(db, 'usernames', username.toLowerCase());
+                     const userRef = doc(db, 'users', user.uid);
+                     transaction.delete(usernameRef);
+                     transaction.delete(userRef);
+                });
+                console.log("Cleanup successful for anonymous user:", username);
+            } catch (err) {
+                console.error("Cleanup error:", err);
+            }
+        }
+
+        await signOut(auth);
+        setUsername('');
+        setNeedsUsername(false);
+        window.location.reload(); 
+    };
+
+    const uploadAvatar = async (file) => {
+        if (!user || user.isAnonymous) return;
+        if (!file) return;
+
+        // Validation
+        const isImage = file.type.startsWith('image/');
+        if (!isImage) { setError("Solo se permiten imágenes"); return; }
+        if (file.size > 2 * 1024 * 1024) { setError("La imagen no debe pesar más de 2MB"); return; }
+
+        setLoading('upload');
+        try {
+            const fileRef = ref(storage, `avatars/${user.uid}`);
+            await uploadBytes(fileRef, file);
+            const photoURL = await getDownloadURL(fileRef);
+
+            // Update Auth Profile
+            await updateProfile(auth.currentUser, { photoURL });
+            
+            // Update Firestore Profile
+            await updateDoc(doc(db, 'users', user.uid), { photoURL });
+            
+            // Update Local State if needed (User obj might update automatically via auth listener, but let's be safe)
+            setUser(prev => ({ ...prev, photoURL })); 
+            
+            console.log("Avatar updated:", photoURL);
+        } catch (err) {
+            console.error("Upload Error:", err);
+            setError("Error al subir imagen");
+        } finally {
+            setLoading(null);
+        }
+    };
+
+    const cleanAnonymousUsers = async () => {
+        setLoading('cleanup');
+        console.log("Starting cleanup...");
+        try {
+            // query all users where email is null
+            // Note: firestore filtering by 'email == null' works if field exists and is null. 
+            // If field is missing, we might need a different query or client side filter.
+            // Let's fetch all users for safety in this small app context (~100 users max likely)
+            // Or better: where("email", "==", null)
+            const usersRef = collection(db, 'users');
+            const q = import('firebase/firestore').then(async ({ query, where, getDocs, writeBatch }) => {
+                 const q = query(collection(db, 'users'), where("email", "==", null));
+                 const snapshot = await getDocs(q);
+                 
+                 console.log(`Found ${snapshot.size} anonymous users to delete.`);
+                 
+                 const batch = writeBatch(db);
+                 let counter = 0;
+
+                 snapshot.forEach(docSnap => {
+                     const data = docSnap.data();
+                     // Delete User Doc
+                     batch.delete(docSnap.ref);
+                     
+                     // Delete Username Doc if exists
+                     if (data.username) {
+                         const usernameRef = doc(db, 'usernames', data.username.toLowerCase());
+                         batch.delete(usernameRef);
+                     }
+                     counter++;
+                 });
+
+                 if (counter > 0) {
+                     await batch.commit();
+                     alert(`Se han eliminado ${counter} usuarios anónimos.`);
+                 } else {
+                     alert("No se encontraron usuarios anónimos para borrar.");
+                 }
+            });
+
+        } catch (err) {
+            console.error("Cleanup error:", err);
+            alert("Error limpiando usuarios: " + err.message);
+        } finally {
+            setLoading(null);
+        }
+    };
+
+    const removeAvatar = async () => {
+        if (!user) return;
+        setLoading('upload');
+        try {
+            // 1. Get original Google Photo
+            const googlePhoto = user.providerData[0]?.photoURL || null;
+
+            // 2. Update Profile
+            await updateProfile(user, { photoURL: googlePhoto });
+            
+            // 3. Update Firestore User
+            const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, { photoURL: googlePhoto });
+
+            // 4. Update Local State
+            setUser({ ...user, photoURL: googlePhoto });
+            
+            // 5. Build storage ref correctly to delete
+            // The file path is `avatars/${user.uid}`
+            const avatarRef = ref(storage, `avatars/${user.uid}`);
+            // We try to delete, but if it doesn't exist (or fails), we just ignore it to not block the UI reset
+            await deleteObject(avatarRef).catch(err => console.log("Old avatar delete skipped:", err));
+
+        } catch (error) {
+            console.error("Error removing avatar:", error);
+            setError("Error al eliminar la foto");
+        } finally {
+            setLoading(null);
+        }
+    };
+
+    // Helper to update global user stats (Only for Registered Users)
+    const updateUserStats = async (finalScore) => {
+        if (!user || user.isAnonymous) return;
+        
+        try {
+            const userRef = doc(db, "users", user.uid);
+            // We use atomic increments
+            await updateDoc(userRef, {
+                totalScore: increment(finalScore),
+                gamesPlayed: increment(1),
+                lastPlayed: serverTimestamp()
+            });
+        } catch (err) {
+            console.error("Error updating user stats debugging:", err);
+        }
+    };
+
+    return {
+    updateUserStats, // Added
     user,
+    userStats,
     username, setUsername,
+    needsUsername,
+    loginWithGoogle,
+    loginWithApple,
+    registerUsername,
+    logout,
+    cleanAnonymousUsers,
+    uploadAvatar,
+    removeAvatar, // Added removeAvatar
     loading, error,
     
     // Modes
@@ -477,6 +902,7 @@ export function useGameLogic() {
     handleAnswer,
     exitGame,
     copyCode,
+    sendReaction,
     
     // State
     timeLeft,
@@ -487,6 +913,7 @@ export function useGameLogic() {
         return `${m}:${sec.toString().padStart(2, '0')}`;
     },
     localFeedback,
-    copied
+    copied,
+    combo
   };
 }

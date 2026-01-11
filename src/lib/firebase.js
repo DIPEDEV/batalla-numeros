@@ -1,7 +1,8 @@
 // --- CONFIGURACIÓN DE FIREBASE ---
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, OAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyD-kxFKykKUu5rILZXC6mZojdjfO3s7H1M",
@@ -15,5 +16,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();
+export const appleProvider = new OAuthProvider('apple.com');
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 export const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';

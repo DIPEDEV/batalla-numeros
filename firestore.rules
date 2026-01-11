@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- HELPER FUNCTIONS ---
+    
+    // Check if user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Check if user is the owner of the document
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- COLLECTIONS ---
+
+    // 1. Users Collection
+    // - Read: Public (needed to see opponents in lobby/game)
+    // - Write: Only the user themselves can edit their profile
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if isOwner(userId);
+    }
+
+    // 2. Usernames Collection (Global Uniqueness)
+    // - Read: Public (to check availability)
+    // - Create: Authenticated users can reserve a name if it doesn't exist
+    // - Delete: Only the owner (linked uid) can delete (e.g., on logout/cleanup)
+    match /usernames/{username} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+      // No updates allowed (must delete and recreate to change name)
+    }
+
+    // 3. Games Collection
+    // - Read: Public
+    // - Create: Authenticated users
+    // - Update: Authenticated users (joining, updating score, hosting)
+    // *Logic is complex for multiplayer, so we rely on app logic + basic auth check*
+    match /games/{gameId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn(); // In a stricter app, we'd validate specific fields
+    }
+  }
+}

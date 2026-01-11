@@ -1,0 +1,27 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Avatar Rules
+    // Path: avatars/{userId}
+    match /avatars/{userId} {
+      // Anyone can view avatars (needed for game leaderboards)
+      allow read: if true;
+      
+      // Only the user can upload their own avatar
+      // Validation: Must be an image, less than 2MB (enforced by client, but good to have here too if possible)
+      allow write: if isOwner(userId) 
+                   && request.resource.size < 2 * 1024 * 1024 // 2MB limit
+                   && request.resource.contentType.matches('image/.*');
+    }
+  }
+}

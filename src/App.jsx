@@ -7,21 +7,26 @@ import LobbyScreen from './components/screens/LobbyScreen';
 import GameScreen from './components/screens/GameScreen';
 import ResultsScreen from './components/screens/ResultsScreen';
 import PracticeSetupScreen from './components/screens/PracticeSetupScreen';
+import EmojiReactionSystem from './components/common/EmojiReactionSystem';
 
 export default function App() {
   const game = useGameLogic();
 
-  // 1. Loading
-  if (!game.user) return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
-      <Loader2 className="animate-spin h-8 w-8 mr-2" />
-      <span className="text-xl">Conectando...</span>
-    </div>
-  );
+  let content = null;
+  const isOnline = !game.practiceMode && game.activeGameId && game.gameData;
 
+  // 1. Loading
+  if (!game.user) {
+    content = (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
+        <Loader2 className="animate-spin h-8 w-8 mr-2" />
+        <span className="text-xl">Conectando...</span>
+        </div>
+    );
+  }
   // 2. Menú Principal (Login)
-  if (!game.activeGameId && !game.practiceMode) {
-    return (
+  else if (!game.activeGameId && !game.practiceMode) {
+    content = (
         <LoginScreen 
             username={game.username}
             setUsername={game.setUsername}
@@ -32,13 +37,22 @@ export default function App() {
             gameIdInput={game.gameIdInput}
             setGameIdInput={game.setGameIdInput}
             enterPracticeMode={game.enterPracticeMode}
+            loginWithGoogle={game.loginWithGoogle}
+            loginWithApple={game.loginWithApple}
+            registerUsername={game.registerUsername}
+            needsUsername={game.needsUsername}
+            logout={game.logout}
+            user={game.user}
+            isGoogleUser={!!game.user && !game.user.isAnonymous}
+            uploadAvatar={game.uploadAvatar}
+            removeAvatar={game.removeAvatar}
+            userStats={game.userStats}
         />
     );
   }
-
   // 3. Practice Setup
-  if (game.practiceMode && game.gameData?.status === 'setup') {
-      return (
+  else if (game.practiceMode && game.gameData?.status === 'setup') {
+      content = (
           <PracticeSetupScreen 
              onStart={game.startGame}
              onBack={game.exitGame}
@@ -53,10 +67,9 @@ export default function App() {
           />
       );
   }
-
   // 4. Sala de Espera / Lobby (Multiplayer Only)
-  if (!game.practiceMode && game.gameData && (game.gameData.status === 'lobby' || game.gameData.status === 'waiting')) {
-    return (
+  else if (!game.practiceMode && game.gameData && (game.gameData.status === 'lobby' || game.gameData.status === 'waiting')) {
+    content = (
         <LobbyScreen 
             user={game.user}
             gameData={game.gameData}
@@ -76,10 +89,9 @@ export default function App() {
         />
     );
   }
-
   // 5. Pantalla de Juego (Both)
-  if (game.gameData && (game.gameData.status === 'playing' || game.gameData.status === 'launching')) {
-    return (
+  else if (game.gameData && (game.gameData.status === 'playing' || game.gameData.status === 'launching')) {
+    content = (
         <GameScreen 
             user={game.user}
             gameData={game.gameData}
@@ -92,13 +104,13 @@ export default function App() {
             isPractice={game.practiceMode}
             onExit={game.exitGame}
             showCheatSheet={game.practiceConfig?.showCheatSheet}
+            combo={game.combo}
         />
     );
   }
-
   // 6. Pantalla de Resultados
-  if (game.gameData && game.gameData.status === 'finished') {
-    return (
+  else if (game.gameData && game.gameData.status === 'finished') {
+    content = (
         <ResultsScreen 
             gameData={game.gameData}
             setActiveGameId={game.setActiveGameId}
@@ -109,11 +121,26 @@ export default function App() {
         />
     );
   }
+  else {
+    content = (
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
+            <Loader2 className="animate-spin h-8 w-8 mr-2" />
+            <span className="text-xl">Cargando estado del juego...</span>
+        </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
-        <Loader2 className="animate-spin h-8 w-8 mr-2" />
-        <span className="text-xl">Cargando estado del juego...</span>
-    </div>
+    <>
+      {content}
+      {isOnline && (
+        <EmojiReactionSystem 
+            gameData={game.gameData}
+            sendReaction={game.sendReaction}
+            isLobby={game.gameData.status === 'lobby'}
+            isPlaying={game.gameData.status === 'playing'}
+        />
+      )}
+    </>
   );
 }

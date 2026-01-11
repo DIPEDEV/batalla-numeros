@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Crown, LogOut, ArrowLeft } from 'lucide-react';
+import { Crown, LogOut, ArrowLeft, Settings } from 'lucide-react';
+import ThemeToggle from '../common/ThemeToggle';
 
 export default function ResultsScreen({ 
   gameData, 
@@ -33,11 +34,31 @@ export default function ResultsScreen({
   useEffect(() => {
       if (view === 'podium') {
           // Trigger confetti entry
-          confetti({
-                particleCount: 150,
-                spread: 70,
-                origin: { y: 0.6 }
-          });
+          // Epic Confetti Trigger
+          const duration = 3000;
+          const end = Date.now() + duration;
+          const colors = ['#a786ff', '#fd8bbc', '#eca184', '#f8deb1'];
+
+          (function frame() {
+            confetti({
+              particleCount: 5,
+              angle: 60,
+              spread: 55,
+              origin: { x: 0, y: 0.8 },
+              colors: colors
+            });
+            confetti({
+              particleCount: 5,
+              angle: 120,
+              spread: 55,
+              origin: { x: 1, y: 0.8 },
+              colors: colors
+            });
+
+            if (Date.now() < end) {
+              requestAnimationFrame(frame);
+            }
+          }());
 
           if (!isPractice) {
               const timer = setTimeout(() => {
@@ -63,8 +84,8 @@ export default function ResultsScreen({
   // --- VIEW: COUNTDOWN ---
   if (view === 'countdown') {
       return (
-          <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 overflow-hidden relative">
-              <div key={count} className="text-[12rem] font-black text-white animate-ping-once drop-shadow-[0_0_35px_rgba(255,255,255,0.5)]">
+          <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex flex-col items-center justify-center p-4 overflow-hidden relative">
+              <div key={count} className="text-[12rem] font-black text-slate-900 dark:text-white animate-ping-once drop-shadow-2xl">
                   {count}
               </div>
           </div>
@@ -74,13 +95,16 @@ export default function ResultsScreen({
   // --- VIEW: PODIUM ---
   if (view === 'podium') {
       return (
-        <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 overflow-hidden relative animate-fade-in">
+        <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex flex-col items-center justify-center p-4 overflow-hidden relative animate-fade-in transition-colors">
            {/* Top Left Exit Button */}
-           <button onClick={onExit} className="absolute top-6 left-6 p-3 bg-white/5 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-all z-50">
-                <LogOut size={24}/>
-           </button>
+           <div className="absolute top-6 left-6 z-50 flex gap-2">
+                <button onClick={onExit} className="p-3 bg-white hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/10 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm">
+                        <LogOut size={24}/>
+                </button>
+                <ThemeToggle />
+           </div>
 
-           <h2 className="text-5xl font-black text-white mb-24 tracking-[0.2em] relative z-10 animate-fade-in-down drop-shadow-2xl">
+           <h2 className="text-5xl font-black text-slate-800 dark:text-white mb-24 tracking-[0.2em] relative z-10 animate-fade-in-down drop-shadow-2xl">
               ¡GANADORES!
            </h2>
            
@@ -92,10 +116,13 @@ export default function ResultsScreen({
                    {top3[1] && (
                        <>
                            <div className="mb-4 text-center">
-                               <p className="font-bold text-slate-200 text-2xl mb-1">{top3[1].name}</p>
+                                <div className="mb-2 w-16 h-16 rounded-full border-4 border-slate-500 overflow-hidden shadow-lg mx-auto bg-slate-800">
+                                    {top3[1].photoURL ? <img src={top3[1].photoURL} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-xl">{top3[1].name.charAt(0)}</div>}
+                                </div>
+                                <p className="font-bold text-slate-700 dark:text-slate-200 text-2xl mb-1">{top3[1].name}</p>
                                <p className="text-slate-400 font-mono text-lg">{top3[1].score} pts</p>
                            </div>
-                           <div className="w-28 h-48 bg-slate-700 rounded-t-2xl flex items-end justify-center pb-6 shadow-[0_0_30px_rgba(51,65,85,0.3)] border-t-4 border-slate-500 relative overflow-hidden">
+                           <div className="w-28 h-48 bg-slate-700 rounded-t-2xl flex items-end justify-center pb-6 shadow-[0_0_30px_rgba(51,65,85,0.3)] border-t-4 border-slate-500 relative overflow-hidden animate-grow-up origin-bottom">
                                 <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent"></div>
                                 <span className="text-5xl font-black text-slate-400">#2</span>
                            </div>
@@ -107,12 +134,17 @@ export default function ResultsScreen({
                <div className="flex flex-col items-center z-20 animate-slide-up">
                    {top3[0] && (
                        <>
-                            <Crown className="w-20 h-20 text-yellow-400 mb-6 animate-bounce drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]" />
+                            <Crown className="w-20 h-20 text-yellow-400 mb-2 animate-bounce drop-shadow-[0_0_15px_rgba(250,204,21,0.5)]" />
+                             
+                            <div className="mb-4 w-24 h-24 rounded-full border-4 border-yellow-400 overflow-hidden shadow-xl mx-auto bg-yellow-600 relative z-10">
+                               {top3[0].photoURL ? <img src={top3[0].photoURL} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-3xl">{top3[0].name.charAt(0)}</div>}
+                            </div>
+
                            <div className="mb-4 text-center">
-                               <p className="font-black text-4xl text-yellow-300 drop-shadow-lg mb-1">{top3[0].name}</p>
-                               <p className="text-yellow-100 font-mono text-2xl font-bold">{top3[0].score} pts</p>
+                               <p className="font-black text-4xl text-yellow-600 dark:text-yellow-300 drop-shadow-lg mb-1">{top3[0].name}</p>
+                               <p className="text-yellow-600 dark:text-yellow-100 font-mono text-2xl font-bold">{top3[0].score} pts</p>
                            </div>
-                           <div className="w-40 h-72 bg-gradient-to-b from-yellow-500 to-yellow-700 rounded-t-2xl flex items-end justify-center pb-8 shadow-[0_0_50px_rgba(234,179,8,0.4)] border-t-8 border-yellow-300 relative overflow-hidden ring-4 ring-yellow-400/20">
+                           <div className="w-40 h-72 bg-gradient-to-b from-yellow-500 to-yellow-700 rounded-t-2xl flex items-end justify-center pb-8 shadow-[0_0_50px_rgba(234,179,8,0.4)] border-t-8 border-yellow-300 relative overflow-hidden ring-4 ring-yellow-400/20 animate-grow-up origin-bottom">
                                 <div className="absolute inset-0 bg-yellow-300/20 animate-pulse"></div>
                                 <span className="text-8xl font-black text-yellow-900/50 relative z-10">#1</span>
                            </div>
@@ -125,10 +157,13 @@ export default function ResultsScreen({
                    {top3[2] && (
                        <>
                            <div className="mb-4 text-center">
-                               <p className="font-bold text-orange-200 text-2xl mb-1">{top3[2].name}</p>
+                                <div className="mb-2 w-16 h-16 rounded-full border-4 border-orange-700 overflow-hidden shadow-lg mx-auto bg-orange-900">
+                                    {top3[2].photoURL ? <img src={top3[2].photoURL} className="w-full h-full object-cover"/> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-xl">{top3[2].name.charAt(0)}</div>}
+                                </div>
+                                <p className="font-bold text-orange-700 dark:text-orange-200 text-2xl mb-1">{top3[2].name}</p>
                                <p className="text-orange-300/80 font-mono text-lg">{top3[2].score} pts</p>
                            </div>
-                           <div className="w-28 h-36 bg-orange-900 rounded-t-2xl flex items-end justify-center pb-6 shadow-[0_0_30px_rgba(124,45,18,0.3)] border-t-4 border-orange-700 relative overflow-hidden">
+                           <div className="w-28 h-36 bg-orange-900 rounded-t-2xl flex items-end justify-center pb-6 shadow-[0_0_30px_rgba(124,45,18,0.3)] border-t-4 border-orange-700 relative overflow-hidden animate-grow-up origin-bottom">
                                 <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent"></div>
                                 <span className="text-5xl font-black text-orange-600">#3</span>
                            </div>
@@ -155,7 +190,7 @@ export default function ResultsScreen({
                     </button>
                     <button 
                          onClick={onExit}
-                         className="bg-white/10 hover:bg-white/20 text-white font-bold py-3 px-8 rounded-full transition-all border border-white/20 backdrop-blur flex items-center gap-2"
+                         className="bg-white hover:bg-slate-50 dark:bg-white/10 dark:hover:bg-white/20 text-slate-700 dark:text-white font-bold py-3 px-8 rounded-full transition-all border border-slate-200 dark:border-white/20 backdrop-blur flex items-center gap-2 shadow-sm"
                     >
                       <LogOut size={20}/> Salir
                     </button>
@@ -167,55 +202,62 @@ export default function ResultsScreen({
 
   // --- VIEW: TABLE ---
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center p-6 overflow-hidden relative animate-fade-in">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 flex flex-col items-center p-6 overflow-hidden relative animate-fade-in transition-colors">
        {/* Top Left Exit Button */}
-       <button onClick={onExit} className="absolute top-6 left-6 p-3 bg-white/5 hover:bg-white/10 rounded-xl text-slate-400 hover:text-white transition-all z-50">
-            <LogOut size={24}/>
-       </button>
+       <div className="absolute top-6 left-6 z-50 flex gap-2">
+            <button onClick={onExit} className="p-3 bg-white hover:bg-slate-100 dark:bg-white/5 dark:hover:bg-white/10 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all shadow-sm">
+                    <LogOut size={24}/>
+            </button>
+            <ThemeToggle />
+       </div>
        
        <div className="w-full max-w-3xl flex flex-col h-[90vh]">
          {/* Header */}
          <div className="flex items-center justify-between mb-8">
              <div className="flex items-center gap-4">
                  <Crown className="text-yellow-500 w-10 h-10"/>
-                 <h2 className="text-3xl font-black text-white tracking-wider">RESULTADOS FINALES</h2>
+                 <h2 className="text-3xl font-black text-slate-800 dark:text-white tracking-wider">RESULTADOS FINALES</h2>
              </div>
              <button 
                 onClick={onExit}
-                className="bg-slate-800 hover:bg-slate-700 text-white font-bold py-3 px-6 rounded-xl transition-all border border-slate-700 flex items-center gap-2"
+                className="bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-white font-bold py-3 px-6 rounded-xl transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-2 shadow-sm"
              >
                 <ArrowLeft size={20}/> Volver al Inicio
              </button>
          </div>
 
          {/* Grid Header */}
-         <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-slate-950/50 rounded-t-2xl text-slate-400 font-bold text-sm uppercase tracking-wider border-b border-slate-800">
+         <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-white dark:bg-slate-950/50 rounded-t-2xl text-slate-500 dark:text-slate-400 font-bold text-sm uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
              <div className="col-span-2 text-center">Pos</div>
              <div className="col-span-7">Jugador</div>
              <div className="col-span-3 text-right">Puntos</div>
          </div>
 
          {/* Scrollable List */}
-         <div className="flex-1 overflow-y-auto bg-slate-900/50 border-x border-b border-slate-800 rounded-b-2xl p-2 space-y-2 custom-scrollbar">
+         <div className="flex-1 overflow-y-auto bg-white/50 dark:bg-slate-900/50 border-x border-b border-slate-200 dark:border-slate-800 rounded-b-2xl p-2 space-y-2 custom-scrollbar">
              {sortedPlayers.map((p, index) => (
                  <div 
                    key={p.id} 
-                   className={`grid grid-cols-12 gap-4 px-4 py-4 rounded-xl items-center transition-all ${index === 0 ? 'bg-yellow-500/10 border border-yellow-500/30' : index === 1 ? 'bg-slate-500/10 border border-slate-500/30' : index === 2 ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-slate-800/50 border border-slate-700/50'}`}
+                   className={`grid grid-cols-12 gap-4 px-4 py-4 rounded-xl items-center transition-all ${index === 0 ? 'bg-yellow-500/10 border border-yellow-500/30' : index === 1 ? 'bg-slate-200 dark:bg-slate-500/10 border border-slate-300 dark:border-slate-500/30' : index === 2 ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50'}`}
                  >
                      <div className="col-span-2 flex justify-center">
-                         <span className={`w-8 h-8 flex items-center justify-center rounded-lg font-black text-lg ${index === 0 ? 'bg-yellow-500 text-black' : index === 1 ? 'bg-slate-400 text-black' : index === 2 ? 'bg-orange-700 text-white' : 'text-slate-500 bg-slate-900'}`}>
+                         <span className={`w-8 h-8 flex items-center justify-center rounded-lg font-black text-lg ${index === 0 ? 'bg-yellow-500 text-black' : index === 1 ? 'bg-slate-400 text-black' : index === 2 ? 'bg-orange-700 text-white' : 'text-slate-500 dark:text-slate-500 bg-slate-200 dark:bg-slate-900'}`}>
                              {index + 1}
                          </span>
                      </div>
                      <div className="col-span-7 flex items-center gap-3">
-                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${p.id === gameData.host ? 'bg-yellow-500 text-black' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'}`}>
-                            {p.name.charAt(0).toUpperCase()}
-                         </div>
-                         <span className={`font-bold text-lg truncate ${p.id === gameData.host ? 'text-yellow-400' : 'text-white'}`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden ${p.id === gameData.host ? 'bg-yellow-500 text-black' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'}`}>
+                             {p.photoURL ? (
+                                <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover"/>
+                             ) : (
+                                p.name.charAt(0).toUpperCase()
+                             )}
+                          </div>
+                         <span className={`font-bold text-lg truncate ${p.id === gameData.host ? 'text-yellow-600 dark:text-yellow-400' : 'text-slate-800 dark:text-white'}`}>
                              {p.name}
                          </span>
                      </div>
-                     <div className="col-span-3 text-right font-mono text-xl font-bold text-blue-400">
+                     <div className="col-span-3 text-right font-mono text-xl font-bold text-blue-500 dark:text-blue-400">
                          {p.score}
                      </div>
                  </div>

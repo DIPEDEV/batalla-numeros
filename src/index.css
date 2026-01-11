@@ -8,20 +8,32 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-white overflow-hidden select-none;
+    @apply bg-slate-100 text-slate-900 dark:bg-[#0B0A15] dark:text-slate-100 overflow-hidden select-none transition-colors duration-300;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    /* Light Mode Pattern */
     background-image: 
-      radial-gradient(circle at 15% 50%, rgba(124, 58, 237, 0.15) 0%, transparent 25%), 
-      radial-gradient(circle at 85% 30%, rgba(236, 72, 153, 0.15) 0%, transparent 25%);
+      radial-gradient(circle at 10% 20%, rgba(124, 58, 237, 0.05) 0%, transparent 40%), 
+      radial-gradient(circle at 90% 80%, rgba(236, 72, 153, 0.05) 0%, transparent 40%);
+  }
+
+  html.dark body {
+    /* Dark Mode Pattern - richer and softer than black */
+    background-image: 
+      radial-gradient(circle at 0% 0%, rgba(56, 11, 222, 0.15) 0%, transparent 50%), 
+      radial-gradient(circle at 100% 100%, rgba(236, 72, 153, 0.1) 0%, transparent 50%);
   }
 }
 
 @layer components {
   .glass-card {
-    @apply bg-white/10 backdrop-blur-md border border-white/20 shadow-xl rounded-3xl;
+    @apply bg-white/10 backdrop-blur-md border border-white/20 shadow-xl rounded-3xl dark:bg-white/10 dark:border-white/20 bg-black/5 border-black/10;
   }
   
   .glass-input {
-    @apply bg-black/20 border border-white/10 text-white placeholder-white/40 focus:bg-black/40 focus:border-white/30 backdrop-blur-sm transition-all outline-none;
+    @apply bg-black/5 border border-black/10 text-slate-900 placeholder-slate-500 focus:bg-black/10 focus:border-black/20 dark:bg-black/20 dark:border-white/10 dark:text-white dark:placeholder-white/40 dark:focus:bg-black/40 dark:focus:border-white/30 backdrop-blur-sm transition-all outline-none;
   }
 
   .btn-primary {
@@ -29,7 +41,7 @@
   }
 
   .btn-secondary {
-    @apply bg-white/10 hover:bg-white/20 text-white font-bold backdrop-blur-sm border border-white/10 transition-all active:scale-95;
+    @apply bg-black/5 hover:bg-black/10 text-slate-700 font-bold backdrop-blur-sm border border-black/5 dark:bg-white/10 dark:hover:bg-white/20 dark:text-white dark:border-white/10 transition-all active:scale-95;
   }
 }
 
@@ -67,6 +79,19 @@
   .shake {
     animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
   }
+  
+  .animate-float-up-fade {
+    animation: float-up-fade 1s ease-out forwards;
+  }
+
+  .animate-score-pop {
+     animation: score-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+
+  .animate-grow-up {
+    animation: grow-up 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    transform-origin: bottom;
+  }
 }
 
 @keyframes float {
@@ -95,4 +120,62 @@
   20%, 80% { transform: translate3d(2px, 0, 0); }
   30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
   40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+@keyframes float-up-fade {
+  0% { opacity: 0; transform: translateY(0) scale(0.5); }
+  20% { opacity: 1; transform: translateY(-10px) scale(1.2); }
+  100% { opacity: 0; transform: translateY(-40px) scale(1); }
+}
+
+@keyframes score-pop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.5); color: #facc15; } /* yellow pop */
+  100% { transform: scale(1); }
+}
+
+@keyframes grow-up {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes bounce-in {
+  0% { transform: scale(0); opacity: 0; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+@keyframes shine {
+  0% { transform: translateX(-100%) skewX(-12deg); }
+  100% { transform: translateX(200%) skewX(-12deg); }
+}
+
+@keyframes slam {
+    0% { transform: scale(3); opacity: 0; }
+    40% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); }
+    60% { transform: scale(1); }
+    100% { transform: scale(1); }
+}
+
+.animate-bounce-in {
+  animation: bounce-in 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.animate-shine {
+    animation: shine 2s infinite linear;
+}
+
+.animate-slam {
+    animation: slam 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes epic-zoom {
+    0% { opacity: 0; transform: scale(0.5); filter: blur(10px); }
+    30% { opacity: 1; transform: scale(1.2); filter: blur(0px); }
+    100% { opacity: 0; transform: scale(1.5); filter: blur(2px); }
+}
+
+.animate-epic-zoom {
+    animation: epic-zoom 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
