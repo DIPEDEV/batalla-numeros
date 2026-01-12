@@ -147,11 +147,14 @@ export default function LobbyScreen({
                       onChange={(e) => setLobbyNumberRange(e.target.value)}
                       className="w-full bg-white dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-400 border border-slate-300 dark:border-slate-600 appearance-none"
                     >
-                        <option value="0-10">0 - 10 (Principiante)</option>
-                        <option value="0-20">0 - 20 (Básico)</option>
-                        <option value="0-50">0 - 50 (Intermedio)</option>
-                        <option value="0-69">0 - 69 (Normal)</option>
-                        <option value="0-100">0 - 100 (Experto)</option>
+                        <option value="0-10">0 - 10 (Fácil)</option>
+                        <option value="0-100">0 - 100 (Medio)</option>
+                        <option value="0-50-mixed">0 - 50 (Mixto)</option>
+                        <option value="0-100-mixed">0 - 100 (Mixto Difícil)</option>
+                        <option value="0-100-sum">0 - 100 (Suma)</option>
+                        <option value="0-100-sub">0 - 100 (Resta)</option>
+                        <option value="0-100-math-mixed">0 - 100 (Mixto Operaciones)</option>
+                        <option value="crazy-mode">0 - 100 (MODO LOCO 🔥)</option>
                     </select>
                  </div>
 

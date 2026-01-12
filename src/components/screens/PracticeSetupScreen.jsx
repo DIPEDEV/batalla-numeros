@@ -75,11 +75,14 @@ export default function PracticeSetupScreen({
                          onChange={(e) => setNumberRange(e.target.value)}
                          className="w-full bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-white rounded-xl pl-4 pr-10 py-4 outline-none focus:ring-2 focus:ring-purple-500 dark:focus:ring-purple-400 border border-slate-200 dark:border-slate-600 appearance-none cursor-pointer font-medium transition-shadow hover:shadow-md"
                        >
-                           <option value="0-10">0 - 10 (Principiante)</option>
-                           <option value="0-20">0 - 20 (Básico)</option>
-                           <option value="0-50">0 - 50 (Intermedio)</option>
-                           <option value="0-69">0 - 69 (Normal)</option>
-                           <option value="0-100">0 - 100 (Experto)</option>
+                           <option value="0-10">0 - 10 (Fácil)</option>
+                           <option value="0-100">0 - 100 (Medio)</option>
+                           <option value="0-50-mixed">0 - 50 (Mixto)</option>
+                           <option value="0-100-mixed">0 - 100 (Mixto Difícil)</option>
+                           <option value="0-100-sum">0 - 100 (Suma)</option>
+                           <option value="0-100-sub">0 - 100 (Resta)</option>
+                           <option value="0-100-math-mixed">0 - 100 (Mixto Operaciones)</option>
+                           <option value="crazy-mode">0 - 100 (MODO LOCO 🔥)</option>
                        </select>
                        <ChevronDown className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 pointer-events-none" size={20} />
                      </div>

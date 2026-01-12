@@ -259,6 +259,13 @@ export default function LoginScreen({
                 </div>
             </div>
         )}
+
+        {/* Footer Info */}
+        <div className="absolute bottom-6 left-0 w-full text-center pointer-events-none z-10">
+            <p className="text-[10px] md:text-xs font-mono text-slate-400 dark:text-slate-500 uppercase tracking-widest opacity-80">
+                -- Proyecto de Francés | Sem 2, Periodo 1 | Diego Pérez --
+            </p>
+        </div>
     </div>
   );
 }

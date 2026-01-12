@@ -218,9 +218,29 @@ export function useGameLogic() {
   }, [activeGameId, practiceMode, gameData?.status, practiceConfig.infiniteTime, user?.uid]);
 
 
-    // 5. Question Timeout Logic (5s limit)
+    // 5. Question Timeout Logic (Variable Limit)
+    const getRoundDuration = (difficulty) => {
+        switch(difficulty) {
+            case "0-10": return 3000;
+            case "0-100": return 5000;
+            case "0-50-mixed": return 5000;
+            case "0-100-mixed": return 7000;
+            case "0-100-sum": return 10000;
+            case "0-100-sub": return 15000;
+            case "0-100-math-mixed": return 15000;
+            case "crazy-mode": return 20000;
+            default: return 5000;
+        }
+    };
+
     useEffect(() => {
         if (!gameData || gameData.status !== 'playing') return;
+
+        const currentDifficulty = practiceMode 
+            ? practiceConfig.numberRange 
+            : (gameData.config?.range || lobbyNumberRange);
+            
+        const maxTime = getRoundDuration(currentDifficulty);
 
         const timer = setInterval(() => {
             const now = Date.now();
@@ -233,14 +253,14 @@ export function useGameLogic() {
             if (!currentQ || !currentQ.generatedAt) return; // Should exist
 
             const elapsed = now - currentQ.generatedAt;
-            if (elapsed > 5000) {
+            if (elapsed > maxTime) {
                 // TIMEOUT!
                 handleTimeoutPenalty();
             }
         }, 500);
 
         return () => clearInterval(timer);
-    }, [gameData, practiceMode, user?.uid]); // dependency on gameData might be heavy but needed for currentQ updates
+    }, [gameData, practiceMode, user?.uid, practiceConfig.numberRange, lobbyNumberRange]);
 
     const handleTimeoutPenalty = async () => {
         const penalty = 200;
@@ -475,11 +495,19 @@ export function useGameLogic() {
       const qStart = currentQ.generatedAt || now; // Fallback should not happen
       const timeTakenSec = Math.max(0, (now - qStart) / 1000);
 
-      // 1. Calculate Score (500 -> 0 over 5s)
-      // Formula: 500 - (100 * t). 
-      // At t=0: 500. At t=1: 400. At t=5: 0.
-      let potentialPoints = Math.floor(500 - (100 * timeTakenSec));
-      potentialPoints = Math.max(100, potentialPoints); // Keep a minimum of 100 for correct answers within 5s
+      const currentDifficulty = practiceMode 
+            ? practiceConfig.numberRange 
+            : (gameData.config?.range || lobbyNumberRange);
+      const maxTimeMs = getRoundDuration(currentDifficulty);
+      const maxTimeSec = maxTimeMs / 1000;
+
+      // 1. Calculate Score (Linear decay from 500 to 100 over maxTime)
+      // Formula: 500 - (decayRate * t). 
+      // decayRate = 400 / maxTimeSec
+      const decayRate = 400 / maxTimeSec;
+      
+      let potentialPoints = Math.floor(500 - (decayRate * timeTakenSec));
+      potentialPoints = Math.max(100, potentialPoints); // Keep a minimum of 100 for correct answers within time
       // Note: If t > 5, timeout handles it. But if user answers at 5.1s before timeout ticks? 
       // Let's cap at 100 min. Or fail? 
       // User says: "si no la sacas en 5s te quita 200". 

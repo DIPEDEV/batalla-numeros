@@ -283,9 +283,9 @@ export default function GameScreen({
             <div className="relative z-10 w-full max-w-2xl animate-fade-in-up">
               <div className="mb-16 text-center relative">
                 
-                {/* COMBO INDICATOR (Centered with Question) */}
-                {combo >= 1 && (
-                   <div key={combo} className="absolute left-1/2 -top-24 -translate-x-1/2 z-50 animate-slam origin-center pointer-events-none">
+                {/* COMBO INDICATOR */}
+                {combo >= 2 && (
+                   <div key={combo} className="absolute left-1/2 -top-40 -translate-x-1/2 z-50 animate-slam origin-center pointer-events-none">
                        <div className="relative flex flex-col items-center">
                            {/* Background glow & Ring */}
                            <div className="absolute inset-0 bg-yellow-500/20 dark:bg-yellow-500/40 blur-xl rounded-full animate-pulse"></div>
@@ -299,16 +299,16 @@ export default function GameScreen({
                                {/* Shimmer effect */}
                                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-yellow-500/10 dark:via-white/40 to-transparent -translate-x-full animate-shine"></div>
                                
-                               <div className="flex flex-col items-end z-10">
-                                   <span className="text-xs font-black text-yellow-600 dark:text-yellow-400 tracking-[0.3em] leading-none mb-1 drop-shadow-sm">COMBO</span>
+                               <div className="flex flex-col items-center z-10">
+                                   <span className="text-xs font-black text-yellow-600 dark:text-yellow-400 tracking-[0.3em] leading-none mb-1 drop-shadow-sm uppercase">Seguidas</span>
                                    <span className="text-6xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-400 to-orange-600 leading-none drop-shadow-md filter" style={{ WebkitTextStroke: '1px rgba(0,0,0,0.1)' }}>
-                                       x{(1 + Math.min(combo, 5) * 0.2).toFixed(1)}
+                                       {combo}
                                    </span>
                                </div>
                                
                                {combo >= 5 && (
                                    <div className="absolute top-1 right-1">
-                                       <span className="text-[10px] bg-red-600 text-white font-black px-2 py-0.5 rounded animate-pulse shadow-lg ring-1 ring-white/50">MAX</span>
+                                       <span className="text-[10px] bg-red-600 text-white font-black px-2 py-0.5 rounded animate-pulse shadow-lg ring-1 ring-white/50">🔥</span>
                                    </div>
                                )}
                            </div>
@@ -317,13 +317,31 @@ export default function GameScreen({
                 )}
 
                 <div className="inline-block px-4 py-1 rounded-full bg-white/40 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-indigo-600 dark:text-indigo-300 text-xs font-bold uppercase tracking-[0.2em] mb-6 backdrop-blur-sm">
-                    TRADUCE AL NÚMERO
+                    {myCurrentQ.displayMode === 'math' ? 'RESUELVE' : myCurrentQ.displayMode === 'reverse-math' ? 'ENCUENTRA LA OPERACIÓN' : 'TRADUCE AL NÚMERO'}
                 </div>
-                <h2 className="text-6xl md:text-7xl font-black pb-2">
-                  <span className="text-transparent bg-clip-text bg-gradient-to-b from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 drop-shadow-2xl">
-                    {myCurrentQ.targetText}
-                  </span>
-                </h2>
+                
+                {myCurrentQ.displayMode === 'math' ? (
+                   <div className="flex flex-col items-end justify-center animate-pop-in relative px-8">
+                       <div className="text-4xl md:text-5xl font-black text-slate-800 dark:text-white mb-1 mr-4">{myCurrentQ.operand1}</div>
+                       <div className="flex items-center justify-end gap-4 text-4xl md:text-5xl font-black text-slate-800 dark:text-white w-full">
+                           <span className="text-indigo-500 absolute left-0 text-5xl">{myCurrentQ.operator}</span>
+                           <span className="mr-4">{myCurrentQ.operand2}</span>
+                       </div>
+                       <div className="w-full h-1.5 bg-slate-800 dark:bg-white rounded-full mt-2"></div>
+                   </div>
+                ) : myCurrentQ.displayMode === 'reverse-math' ? (
+                   <h2 className="text-8xl md:text-9xl font-black pb-2 animate-pop-in">
+                     <span className="text-transparent bg-clip-text bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-600 dark:from-white dark:via-purple-200 dark:to-indigo-300 drop-shadow-2xl">
+                       {myCurrentQ.targetText}
+                     </span>
+                   </h2>
+                ) : (
+                   <h2 className="text-6xl md:text-7xl font-black pb-2">
+                     <span className="text-transparent bg-clip-text bg-gradient-to-b from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 drop-shadow-2xl">
+                       {myCurrentQ.targetText}
+                     </span>
+                   </h2>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4 md:gap-6">
@@ -331,10 +349,25 @@ export default function GameScreen({
                   <button
                     key={option}
                     onClick={() => handleAnswer(option)}
-                    className="group relative bg-white/40 dark:bg-white/5 hover:bg-indigo-100/50 dark:hover:bg-indigo-600/20 active:bg-indigo-200/50 dark:active:bg-indigo-600/40 text-slate-700 dark:text-slate-200 hover:text-indigo-700 dark:hover:text-white transition-all duration-150 font-bold text-4xl md:text-5xl py-10 rounded-3xl border-2 border-white/50 dark:border-white/10 hover:border-indigo-400 shadow-xl hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:-translate-y-1 active:scale-95 overflow-hidden backdrop-blur-sm"
+                    className="group relative bg-white/40 dark:bg-white/5 hover:bg-indigo-100/50 dark:hover:bg-indigo-600/20 active:bg-indigo-200/50 dark:active:bg-indigo-600/40 text-slate-700 dark:text-slate-200 hover:text-indigo-700 dark:hover:text-white transition-all duration-150 font-bold py-6 px-4 rounded-3xl border-2 border-white/50 dark:border-white/10 hover:border-indigo-400 shadow-xl hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:-translate-y-1 active:scale-95 overflow-hidden backdrop-blur-sm flex flex-col items-center justify-center min-h-[140px]"
                   >
                     <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                    <span className="relative z-10">{option}</span>
+                    
+                    {myCurrentQ.displayMode === 'reverse-math' ? (() => {
+                        const op = option.includes(' + ') ? '+' : '-';
+                        const [a, b] = option.split(op === '+' ? ' + ' : ' - ');
+                        return (
+                            <div className="relative z-10 flex flex-col items-end w-fit mx-auto animate-pop-in">
+                                <span className="text-lg md:text-xl mr-2 leading-tight">{a}</span>
+                                <div className="flex items-center justify-end w-full pl-6 relative">
+                                     <span className="text-xl md:text-2xl absolute left-0 bottom-1 leading-none opacity-70">{op}</span>
+                                     <span className="text-lg md:text-xl leading-tight">{b}</span>
+                                </div>
+                            </div>
+                        );
+                    })() : (
+                        <span className="relative z-10 text-3xl md:text-5xl leading-none">{option}</span>
+                    )}
                   </button>
                 ))}
               </div>
