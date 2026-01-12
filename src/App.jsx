@@ -86,6 +86,12 @@ export default function App() {
             hostPlays={game.hostPlays}
             setHostPlays={game.setHostPlays}
             onBack={game.exitGame}
+            toggleTeamMode={game.toggleTeamMode}
+            switchTeam={game.switchTeam}
+            chaosMode={game.chaosMode}
+            setChaosMode={game.setChaosMode}
+            chaosFrequency={game.chaosFrequency}
+            setChaosFrequency={game.setChaosFrequency}
         />
     );
   }

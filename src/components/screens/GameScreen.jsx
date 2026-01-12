@@ -57,6 +57,55 @@ export default function GameScreen({
       setShowExitConfirm(false);
   };
 
+  // --- Chaos Effects Helper Components ---
+  const MatrixRain = () => {
+      const canvasRef = useRef(null);
+      useEffect(() => {
+          const canvas = canvasRef.current;
+          const ctx = canvas.getContext('2d');
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+          
+          const fontSize = 14;
+          const columns = canvas.width / fontSize;
+          const drops = Array(Math.floor(columns)).fill(1);
+          
+          const draw = () => {
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.fillStyle = '#0F0';
+              ctx.font = fontSize + 'px monospace';
+              
+              for(let i = 0; i < drops.length; i++) {
+                  const text = Math.floor(Math.random() * 10).toString();
+                  ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                  if(drops[i] * fontSize > canvas.height && Math.random() > 0.975)
+                      drops[i] = 0;
+                  drops[i]++;
+              }
+          };
+          const interval = setInterval(draw, 33);
+          return () => clearInterval(interval);
+      }, []);
+      return <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none opacity-50" />;
+  };
+
+  const BlackoutEffect = () => {
+      const [pos, setPos] = useState({ x: -100, y: -100 });
+      useEffect(() => {
+          const move = (e) => setPos({ x: e.clientX, y: e.clientY });
+          window.addEventListener('mousemove', move);
+          return () => window.removeEventListener('mousemove', move);
+      }, []);
+      return (
+          <div 
+             className="fixed inset-0 z-50 pointer-events-none"
+             style={{
+                 background: `radial-gradient(circle 150px at ${pos.x}px ${pos.y}px, transparent 0%, rgba(0,0,0,0.98) 100%)`
+             }}
+          ></div>
+      );
+  };
   // --- COUNTDOWN OVERLAY ---
   const [countdown, setCountdown] = useState(3);
   
@@ -176,6 +225,10 @@ export default function GameScreen({
   // Fallback to global currentRound if player-specific is missing (Practice Mode uses global now)
   const myCurrentQ = playerData?.currentQuestion || gameData.currentRound;
 
+  // Team Scores Calculation
+  const redScore = Object.values(gameData.players).filter(p => p.team === 'red').reduce((acc, p) => acc + (p.score || 0), 0);
+  const blueScore = Object.values(gameData.players).filter(p => p.team === 'blue').reduce((acc, p) => acc + (p.score || 0), 0);
+
   return (
     <div className="min-h-screen relative flex overflow-hidden font-sans">
       
@@ -221,9 +274,13 @@ export default function GameScreen({
             </div>
         </div>
       )}
+      
+      {/* --- CHAOS EFFECTS --- */}
+      {gameData.activeEvent?.type === 'RAIN' && <MatrixRain />}
+      {gameData.activeEvent?.type === 'BLACKOUT' && <BlackoutEffect />}
 
       {/* Main Game Area */}
-      <div className={`flex-1 flex flex-col relative z-10 transition-all duration-300 ${sidePanelOpen ? 'mr-0 lg:mr-80' : ''}`}>
+      <div className={`flex-1 flex flex-col relative z-10 transition-all duration-300 ${sidePanelOpen ? 'mr-0 lg:mr-80' : ''} ${gameData.activeEvent?.type === 'MIRROR' ? 'scale-x-[-1]' : ''}`}>
         
         {/* Top Left Exit Button (Absolute, matching Results) */}
         <div className="absolute top-6 left-6 z-50 flex gap-2">
@@ -235,30 +292,44 @@ export default function GameScreen({
 
         {/* Header */}
         <div className="bg-white/80 dark:bg-slate-900/50 backdrop-blur-md border-b border-slate-200 dark:border-white/10 p-4 flex justify-between items-center shadow-lg z-20 pl-40 transition-colors"> 
-          {/* Added padding-left to clear the absolute button or just remove the old button space. 
-              Actually, if I use absolute button, I don't need it inside the flex header.
-              But I need to keep the "score" info aligned? 
-              Let's Keep the header structure but remove the button from it.
-          */}
           
           <div className="flex items-center gap-6">
-             {/* Text/Score Section */}
+             {/* TEAM SCORE BAR (If Team Mode) */}
+             {gameData.teamMode && (
+                 <div className="flex items-center gap-4 bg-slate-100 dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700 mr-4">
+                     <div className="flex flex-col items-center min-w-[80px]">
+                         <span className="text-[10px] font-black text-red-500 uppercase tracking-widest">ROJO</span>
+                         <span key={redScore} className="text-2xl font-black text-slate-800 dark:text-white animate-score-pop">{redScore}</span>
+                     </div>
+                     <div className="h-8 w-[1px] bg-slate-300 dark:bg-slate-600"></div>
+                     <div className="flex flex-col items-center min-w-[80px]">
+                         <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">AZUL</span>
+                         <span key={blueScore} className="text-2xl font-black text-slate-800 dark:text-white animate-score-pop">{blueScore}</span>
+                     </div>
+                 </div>
+             )}
+
+             {/* INDIVIDUAL SCORE */}
              <div className="flex flex-col relative">
-               <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold tracking-widest uppercase mb-0.5">TU PUNTUACIÓN</span>
-              <div className="flex items-center gap-3 relative">
-                  <span key={myScore} className="text-4xl font-black text-slate-800 dark:text-white tracking-tight drop-shadow-md animate-score-pop">{myScore}</span>
-                  
-                  {/* Point Feedback Animation (Popping next to score) */}
-                   {localFeedback && (
-                      <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 pointer-events-none">
-                         <span className={`text-2xl font-black whitespace-nowrap animate-float-up-fade ${localFeedback.type === 'good' ? 'text-emerald-500 dark:text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]' : 'text-rose-500 drop-shadow-[0_0_10px_rgba(244,63,94,0.5)]'}`}>
+               <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-bold tracking-widest uppercase mb-0.5 flex items-center gap-2">
+                    TU PUNTUACIÓN
+                    {gameData.activeEvent?.type === 'DOUBLE' && (
+                        <span className="bg-orange-500 text-white text-[9px] px-1.5 py-0.5 rounded animate-pulse">x2 PUNTOS</span>
+                    )}
+               </span>
+               <div className="flex items-center gap-3 relative">
+                   <span key={myScore} className="text-4xl font-black text-slate-800 dark:text-white tracking-tight drop-shadow-md animate-score-pop">{myScore}</span>
+                   
+                   {/* Point Feedback Animation (Popping next to score) */}
+                    {localFeedback && (
+                       <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 pointer-events-none">
+                          <span className={`text-2xl font-black whitespace-nowrap animate-float-up-fade ${localFeedback.type === 'good' ? 'text-emerald-500 dark:text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.5)]' : 'text-rose-500 drop-shadow-[0_0_10px_rgba(244,63,94,0.5)]'}`}>
                               {localFeedback.val}
                           </span>
-                      </div>
-                  )}
-              </div>
-            </div>
-
+                       </div>
+                   )}
+               </div>
+             </div>
           </div>
           
           <div className="flex items-center gap-4">
@@ -285,8 +356,8 @@ export default function GameScreen({
                 
                 {/* COMBO INDICATOR */}
                 {combo >= 2 && (
-                   <div key={combo} className="absolute left-1/2 -top-40 -translate-x-1/2 z-50 animate-slam origin-center pointer-events-none">
-                       <div className="relative flex flex-col items-center">
+                   <div key={combo} className="absolute inset-x-0 -top-40 flex justify-center z-50 pointer-events-none">
+                       <div className="animate-slam origin-center">
                            {/* Background glow & Ring */}
                            <div className="absolute inset-0 bg-yellow-500/20 dark:bg-yellow-500/40 blur-xl rounded-full animate-pulse"></div>
                            <div className="absolute inset-0 border-4 border-yellow-500/30 rounded-full animate-ping-once transition-colors"></div>
@@ -330,13 +401,13 @@ export default function GameScreen({
                        <div className="w-full h-1.5 bg-slate-800 dark:bg-white rounded-full mt-2"></div>
                    </div>
                 ) : myCurrentQ.displayMode === 'reverse-math' ? (
-                   <h2 className="text-8xl md:text-9xl font-black pb-2 animate-pop-in">
+                   <h2 className="text-6xl md:text-9xl font-black pb-2 animate-pop-in">
                      <span className="text-transparent bg-clip-text bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-600 dark:from-white dark:via-purple-200 dark:to-indigo-300 drop-shadow-2xl">
                        {myCurrentQ.targetText}
                      </span>
                    </h2>
                 ) : (
-                   <h2 className="text-6xl md:text-7xl font-black pb-2">
+                   <h2 className="text-4xl md:text-7xl font-black pb-2">
                      <span className="text-transparent bg-clip-text bg-gradient-to-b from-slate-900 to-slate-600 dark:from-white dark:to-slate-400 drop-shadow-2xl">
                        {myCurrentQ.targetText}
                      </span>
@@ -366,7 +437,7 @@ export default function GameScreen({
                             </div>
                         );
                     })() : (
-                        <span className="relative z-10 text-3xl md:text-5xl leading-none">{option}</span>
+                        <span className="relative z-10 text-2xl md:text-5xl leading-none">{option}</span>
                     )}
                   </button>
                 ))}

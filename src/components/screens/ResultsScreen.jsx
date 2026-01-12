@@ -10,8 +10,13 @@ export default function ResultsScreen({
   onRetry,
   onExit
 }) {
-  const [view, setView] = useState(isPractice ? 'podium' : 'countdown'); // countdown -> podium -> table
+  const [view, setView] = useState(isPractice ? 'podium' : 'countdown'); // countdown -> (team_victory) -> podium -> table
   const [count, setCount] = useState(3);
+
+  // Calculate Team Scores
+  const redScore = Object.values(gameData.players).filter(p => p.team === 'red').reduce((acc, p) => acc + (p.score || 0), 0);
+  const blueScore = Object.values(gameData.players).filter(p => p.team === 'blue').reduce((acc, p) => acc + (p.score || 0), 0);
+  const winningTeam = redScore > blueScore ? 'red' : blueScore > redScore ? 'blue' : 'draw';
 
   // Countdown Effect
   useEffect(() => {
@@ -20,7 +25,12 @@ export default function ResultsScreen({
             setCount(prev => {
                 if (prev <= 1) {
                     clearInterval(timer);
-                    setView('podium');
+                    // If Team Mode, go to Team Victory first
+                    if (gameData.teamMode) {
+                        setView('team_victory');
+                    } else {
+                        setView('podium');
+                    }
                     return 0;
                 }
                 return prev - 1;
@@ -28,6 +38,16 @@ export default function ResultsScreen({
         }, 1000);
         return () => clearInterval(timer);
     }
+  }, [view, gameData.teamMode]);
+
+  // Team Victory Effect
+  useEffect(() => {
+      if (view === 'team_victory') {
+          const timer = setTimeout(() => {
+              setView('podium');
+          }, 4000); // Show for 4 seconds
+          return () => clearTimeout(timer);
+      }
   }, [view]);
 
   // Podium Effect (Auto switch to table after 10s)
@@ -92,6 +112,36 @@ export default function ResultsScreen({
       );
   }
 
+  // --- VIEW: TEAM VICTORY ---
+  if (view === 'team_victory') {
+      return (
+          <div className={`min-h-screen flex flex-col items-center justify-center p-4 overflow-hidden relative animate-fade-in transition-colors ${winningTeam === 'red' ? 'bg-red-900' : winningTeam === 'blue' ? 'bg-blue-900' : 'bg-purple-900'}`}>
+              <div className="absolute inset-0 bg-black/20"></div>
+              <div className="z-10 text-center animate-scale-up">
+                  <h2 className="text-4xl md:text-6xl font-black text-white uppercase tracking-widest mb-4 drop-shadow-lg">
+                      {winningTeam === 'draw' ? '¡EMPATE!' : 'VICTORIA'}
+                  </h2>
+                  {winningTeam !== 'draw' && (
+                      <h1 className={`text-6xl md:text-9xl font-black uppercase text-transparent bg-clip-text bg-gradient-to-br from-white to-white/50 drop-shadow-2xl animate-bounce`}>
+                          EQUIPO {winningTeam === 'red' ? 'ROJO' : 'AZUL'}
+                      </h1>
+                  )}
+                  <div className="mt-8 flex gap-12 justify-center items-center text-white/90">
+                      <div className="flex flex-col items-center">
+                          <span className="text-xl font-bold uppercase tracking-widest text-red-400">Rojo</span>
+                          <span className="text-6xl font-black">{redScore}</span>
+                      </div>
+                      <div className="text-4xl font-thin opacity-50">vs</div>
+                      <div className="flex flex-col items-center">
+                          <span className="text-xl font-bold uppercase tracking-widest text-blue-400">Azul</span>
+                          <span className="text-6xl font-black">{blueScore}</span>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      );
+  }
+
   // --- VIEW: PODIUM ---
   if (view === 'podium') {
       return (
@@ -109,7 +159,7 @@ export default function ResultsScreen({
            </h2>
            
            {/* Podium Container */}
-           <div className="flex items-end justify-center gap-4 mb-20 relative z-10 w-full max-w-4xl h-96">
+           <div className="flex items-end justify-center gap-2 md:gap-4 mb-20 relative z-10 w-full max-w-4xl h-96">
                
                {/* 2nd Place */}
                <div className="flex flex-col items-center animate-slide-up" style={{animationDelay: '0.2s'}}>
@@ -216,11 +266,11 @@ export default function ResultsScreen({
          <div className="flex items-center justify-between mb-8">
              <div className="flex items-center gap-4">
                  <Crown className="text-yellow-500 w-10 h-10"/>
-                 <h2 className="text-3xl font-black text-slate-800 dark:text-white tracking-wider">RESULTADOS FINALES</h2>
+                 <h2 className="text-2xl md:text-3xl font-black text-slate-800 dark:text-white tracking-wider">RESULTADOS FINALES</h2>
              </div>
              <button 
                 onClick={onExit}
-                className="bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-white font-bold py-3 px-6 rounded-xl transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-2 shadow-sm"
+                className="bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-white font-bold py-2 px-4 text-sm md:py-3 md:px-6 md:text-base rounded-xl transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-2 shadow-sm"
              >
                 <ArrowLeft size={20}/> Volver al Inicio
              </button>
@@ -238,7 +288,14 @@ export default function ResultsScreen({
              {sortedPlayers.map((p, index) => (
                  <div 
                    key={p.id} 
-                   className={`grid grid-cols-12 gap-4 px-4 py-4 rounded-xl items-center transition-all ${index === 0 ? 'bg-yellow-500/10 border border-yellow-500/30' : index === 1 ? 'bg-slate-200 dark:bg-slate-500/10 border border-slate-300 dark:border-slate-500/30' : index === 2 ? 'bg-orange-500/10 border border-orange-500/30' : 'bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50'}`}
+                   className={`grid grid-cols-12 gap-4 px-4 py-4 rounded-xl items-center transition-all border ${
+                       p.team === 'red' ? 'bg-red-500/10 border-red-500/20 dark:bg-red-900/20 dark:border-red-500/30' :
+                       p.team === 'blue' ? 'bg-blue-500/10 border-blue-500/20 dark:bg-blue-900/20 dark:border-blue-500/30' :
+                       index === 0 ? 'bg-yellow-500/10 border-yellow-500/30' : 
+                       index === 1 ? 'bg-slate-200/50 dark:bg-slate-500/10 border-slate-300 dark:border-slate-500/30' : 
+                       index === 2 ? 'bg-orange-500/10 border-orange-500/30' : 
+                       'bg-white dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/50'
+                   }`}
                  >
                      <div className="col-span-2 flex justify-center">
                          <span className={`w-8 h-8 flex items-center justify-center rounded-lg font-black text-lg ${index === 0 ? 'bg-yellow-500 text-black' : index === 1 ? 'bg-slate-400 text-black' : index === 2 ? 'bg-orange-700 text-white' : 'text-slate-500 dark:text-slate-500 bg-slate-200 dark:bg-slate-900'}`}>
@@ -246,7 +303,12 @@ export default function ResultsScreen({
                          </span>
                      </div>
                      <div className="col-span-7 flex items-center gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden ${p.id === gameData.host ? 'bg-yellow-500 text-black' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'}`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs overflow-hidden shadow-sm border-2 ${
+                              p.team === 'red' ? 'bg-red-500 border-red-400 text-white' :
+                              p.team === 'blue' ? 'bg-blue-500 border-blue-400 text-white' :
+                              p.id === gameData.host ? 'bg-yellow-500 border-yellow-300 text-black' : 
+                              'bg-gradient-to-br from-indigo-500 to-purple-600 border-transparent text-white'
+                          }`}>
                              {p.photoURL ? (
                                 <img src={p.photoURL} alt={p.name} className="w-full h-full object-cover"/>
                              ) : (

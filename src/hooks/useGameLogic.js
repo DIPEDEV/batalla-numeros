@@ -13,7 +13,10 @@ import {
   getDocs,
   runTransaction,
   serverTimestamp,
-  increment
+  increment,
+  arrayUnion,
+  arrayRemove,
+  deleteField
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged, signInWithPopup, signOut, setPersistence, browserLocalPersistence, updateProfile } from 'firebase/auth'; // Added updateProfile
 import { auth, db, googleProvider, appleProvider, storage } from '../lib/firebase'; // Added storage
@@ -52,6 +55,15 @@ export function useGameLogic() {
   const [lobbyDurationMinutes, setLobbyDurationMinutes] = useState(1);
   const [lobbyNumberRange, setLobbyNumberRange] = useState("0-69");
   const [hostPlays, setHostPlays] = useState(true);
+  const [chaosMode, setChaosMode] = useState(false); // Chaos Mode Toggle
+  const [chaosFrequency, setChaosFrequency] = useState(20); // Frequency in seconds
+
+  // Auto-enable Chaos Mode when "Modo Loco" is selected
+  useEffect(() => {
+    if (lobbyNumberRange === 'crazy-mode') {
+      setChaosMode(true);
+    }
+  }, [lobbyNumberRange]);
 
   // --- Practice Config ---
   const [practiceConfig, setPracticeConfig] = useState({
@@ -262,8 +274,50 @@ export function useGameLogic() {
         return () => clearInterval(timer);
     }, [gameData, practiceMode, user?.uid, practiceConfig.numberRange, lobbyNumberRange]);
 
+    // --- CHAOS MODE LOGIC ---
+    const CHAOS_EVENTS = ['MIRROR', 'RAIN', 'DOUBLE', 'BLACKOUT'];
+    
+    useEffect(() => {
+        if (!gameData || gameData.status !== 'playing' || !chaosMode || gameData.host !== user?.uid || practiceMode) return;
+
+        const interval = setInterval(async () => {
+             // 10% chance to skip a cycle? No, user wants frequency.
+             // Just trigger random event.
+             const eventType = CHAOS_EVENTS[Math.floor(Math.random() * CHAOS_EVENTS.length)];
+             const duration = 10000; // 10 seconds per event
+             
+             // Activate Event
+             const gameRef = doc(db, 'games', activeGameId);
+             await updateDoc(gameRef, {
+                 activeEvent: {
+                     type: eventType,
+                     startTime: Date.now(),
+                     duration: duration
+                 }
+             });
+
+             // Clear Event after duration
+             setTimeout(async () => {
+                 await updateDoc(gameRef, {
+                     activeEvent: null // OR deleteField()
+                 });
+             }, duration);
+             
+        }, chaosFrequency * 1000);
+
+        return () => clearInterval(interval);
+    }, [gameData?.status, chaosMode, chaosFrequency, user?.uid, activeGameId, practiceMode]);
+
+
     const handleTimeoutPenalty = async () => {
-        const penalty = 200;
+        setCombo(0); // Reset Combo on Timeout
+        let penalty = 200;
+        
+        // Chaos: Double Penalty
+        if (gameData?.activeEvent?.type === 'DOUBLE') {
+            penalty *= 2;
+        }
+
         setLocalFeedback({ val: `-${penalty} (Tiempo)`, type: 'bad' });
         setTimeout(() => setLocalFeedback(null), 1000);
 
@@ -432,9 +486,25 @@ export function useGameLogic() {
 
   const joinGame = async () => {
       // Guests CAN join games.
-      if (!user) { setError("Esperando conexión..."); return; }
-      if (!gameIdInput.trim() || !username.trim()) return;
+      let currentUser = user;
       setLoading('join');
+      
+      try {
+          if (!currentUser) {
+             console.log("JoinGame: No user, signing in anon...");
+             const userCred = await signInAnonymously(auth);
+             currentUser = userCred.user;
+             setUser(currentUser); // Update local state immediately
+          }
+      } catch (err) {
+          console.error("Anon auth failed:", err);
+          setError("Error de autenticación anónima");
+          setLoading(null);
+          return;
+      }
+
+      if (!gameIdInput.trim() || !username.trim()) { setLoading(null); return; }
+      
       const targetId = gameIdInput.toUpperCase();
 
       try {
@@ -450,23 +520,23 @@ export function useGameLogic() {
 
               // Unique Name Check within Game
               const existingPlayers = Object.values(data.players || {});
-              const nameTaken = existingPlayers.some(p => p.name.toLowerCase() === username.toLowerCase() && p.joinedAt); // Ensure it's not a ghost
-              if (nameTaken) throw "Ya hay un jugador con ese nombre en esta sala.";
+              const nameTaken = existingPlayers.some(p => p.name.toLowerCase() === username.toLowerCase() && p.joinedAt); 
+              if (nameTaken) throw "Nombre ya usado en esta sala.";
 
-              // Validation for Anonymous users: Cannot use reserved global names
-              if (user.isAnonymous) {
+              // Validation for Anonymous users
+              if (currentUser.isAnonymous) {
                    const usernameRef = doc(db, 'usernames', username.toLowerCase());
                    const usernameDoc = await transaction.get(usernameRef);
                    if (usernameDoc.exists()) {
-                       throw "Este nombre está reservado por un usuario registrado.";
+                       throw "Nombre reservado por usuario registrado.";
                    }
               }
 
               transaction.update(gameRef, {
-                  playerList: arrayUnion(user.uid),
-                  [`players.${user.uid}`]: {
+                  playerList: arrayUnion(currentUser.uid),
+                  [`players.${currentUser.uid}`]: {
                       name: username,
-                      photoURL: user.photoURL || null, // Include Avatar
+                      photoURL: currentUser.photoURL || null,
                       score: 0,
                       joinedAt: serverTimestamp()
                   }
@@ -525,7 +595,12 @@ export function useGameLogic() {
 
           // Calculate Multiplier (x1.2, x1.4, x1.6, x1.8, x2.0 MAX)
           // Formula: 1 + (combo * 0.2)
-          const multiplier = 1 + (Math.min(newCombo, 5) * 0.2);
+          let multiplier = 1 + (Math.min(newCombo, 5) * 0.2);
+
+          // Chaos: Double Multiplier
+          if (gameData?.activeEvent?.type === 'DOUBLE') {
+              multiplier *= 2; 
+          }
           
           points = Math.round(potentialPoints * multiplier);
       } else {
@@ -535,11 +610,16 @@ export function useGameLogic() {
 
           // Penalty: Half of potential (no multiplier on penalty)
           points = -Math.floor(potentialPoints / 2);
+
+           // Chaos: Double Penalty
+          if (gameData?.activeEvent?.type === 'DOUBLE') {
+              points *= 2;
+          }
       }
 
       // Feedback UI
       const feedbackText = isCorrect 
-          ? `+${points}${newCombo > 0 ? ` (x${(1 + Math.min(newCombo, 5) * 0.2).toFixed(1)})` : ''}` 
+          ? `+${points}${newCombo > 0 ? ` (x${(1 + Math.min(newCombo, 5) * 0.2).toFixed(1)})${gameData?.activeEvent?.type === 'DOUBLE' ? ' 🔥 x2' : ''}` : ''}` 
           : `${points}`;
       
       setLocalFeedback({ val: feedbackText, type: isCorrect ? 'good' : 'bad' });
@@ -629,6 +709,59 @@ export function useGameLogic() {
       setGameIdInput('');
       setCombo(0); // Reset combo
       statsRecordedRef.current = false; // Reset for next game
+  };
+
+  const toggleTeamMode = async () => {
+    // Relaxed check: Just need active game and user. Host check handles permission silently or we can show error.
+    if (!activeGameId || !user) return;
+    if (gameData?.host !== user.uid) {
+        setError("Solo el host puede cambiar esto");
+        return;
+    }
+
+    const newMode = !gameData.teamMode;
+    const gameRef = doc(db, 'games', activeGameId);
+
+    try {
+        if (newMode) {
+            // Assign teams randomly
+            const playerIds = Object.keys(gameData.players);
+            // Simple shuffle
+            for (let i = playerIds.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [playerIds[i], playerIds[j]] = [playerIds[j], playerIds[i]];
+            }
+
+            const updates = { teamMode: true };
+            playerIds.forEach((pid, index) => {
+                updates[`players.${pid}.team`] = index % 2 === 0 ? 'red' : 'blue';
+            });
+            
+            await updateDoc(gameRef, updates);
+        } else {
+            // Turn off team mode
+            await updateDoc(gameRef, { teamMode: false });
+        }
+    } catch (err) {
+        console.error("Error toggling team mode:", err);
+        setError("Error al cambiar modo equipos");
+    }
+  };
+
+  const switchTeam = async () => {
+     if (!activeGameId || !user || !gameData.teamMode) return;
+     
+     const currentTeam = gameData.players[user.uid]?.team || 'red'; // Default to red if missing
+     const newTeam = currentTeam === 'red' ? 'blue' : 'red';
+     
+     const gameRef = doc(db, 'games', activeGameId);
+     try {
+         await updateDoc(gameRef, {
+             [`players.${user.uid}.team`]: newTeam
+         });
+     } catch (err) {
+         console.error("Error switching team:", err);
+     }
   };
 
   const copyCode = () => {
@@ -942,6 +1075,13 @@ export function useGameLogic() {
     },
     localFeedback,
     copied,
-    combo
+    combo,
+    toggleTeamMode,
+    switchTeam,
+    // Chaos Mode Exports
+    chaosMode,
+    setChaosMode,
+    chaosFrequency,
+    setChaosFrequency
   };
 }

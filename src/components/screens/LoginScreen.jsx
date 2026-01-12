@@ -78,7 +78,7 @@ export default function LoginScreen({
       
       <div className="bg-white/90 dark:bg-[#1A1825]/95 backdrop-blur-2xl border border-white/60 dark:border-white/5 shadow-2xl rounded-3xl max-w-md w-full p-8 md:p-12 relative z-10 animate-pop-in">
         <div className="text-center mb-10">
-          <h1 className="text-5xl md:text-6xl font-black tracking-tighter mb-2 text-transparent bg-clip-text bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-600 dark:from-white dark:via-purple-200 dark:to-indigo-300 drop-shadow-sm">
+          <h1 className="text-4xl md:text-6xl font-black tracking-tighter mb-2 text-transparent bg-clip-text bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-600 dark:from-white dark:via-purple-200 dark:to-indigo-300 drop-shadow-sm">
             L'Arène
           </h1>
           <h2 className="text-2xl md:text-3xl font-light text-indigo-500 dark:text-indigo-200/80 tracking-widest uppercase">
