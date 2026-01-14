@@ -1,0 +1,25 @@
+1. Sistema de Ataques (Power-ups) ⚔️
+Al tener rachas (ej. 3 correctas seguidas), ganas un botón de ataque para molestar al líder o a un rival al azar:
+
+Tinta de Calamar (Ink Splat): Mancha la pantalla de los rivales con manchas negras por 3 segundos, tapando las respuestas.
+Hielo (Freeze): Congela sus botones de respuesta por 2 segundos (no pueden hacer click).
+Terremoto (Shake): Su pantalla tiembla violentamente, haciendo difícil leer y apuntar.
+Intercambio (Swap): Intercambia las respuestas de lugar justo antes de que toquen.
+Flashbang: La pantalla se pone blanca por 1 segundo.
+2. Eventos Globales "Caos" 🌪️
+El Host puede activar (o ocurren al azar cada 5 preguntas) eventos para todos:
+
+"Modo Espejo": Todo el texto se voltea horizontalmente.
+"Lluvia de Números": Caen números falsos por la pantalla que distraen.
+"Doble o Nada": La siguiente pregunta vale x2, pero si fallas pierdes x2 puntos.
+"Apagón": La pantalla se oscurece casi totalmente y solo ves un círculo (linterna) donde mueves el mouse/dedo.
+3. Modos de Juego en Equipo 🤝
+Carrera de Relevos: Equipo Rojo vs Azul. Cada acierto suma a una barra de progreso común. El primer equipo en llenar la barra gana.
+Defensa de la Torre: Las respuestas correctas construyen/reparan un muro, las incorrectas lo dañan. Sobrevivir oleadas de preguntas rápidas.
+4. Reacciones en Vivo (Emotes) 😂
+Permitir enviar emojis gigantes o sonidos cortos (abucheos, aplausos, risas) que aparezcan flotando en la pantalla de todos.
+5. "La Bomba" (Hot Potato) 💣
+Un jugador tiene una "bomba" (icono) al azar.
+Solo se la puede pasar a otro si responde correctamente y rápido.
+Al quien le explote (cuando un timer oculto termine), pierde la mitad de sus puntos o queda eliminado esa ronda.
+¿Alguna de estas te suena bien para explorar más adelante? Personalmente, creo que el Sistema de Ataques agregaría mucha competitividad y risas.

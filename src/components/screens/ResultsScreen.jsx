@@ -8,7 +8,8 @@ export default function ResultsScreen({
   confetti,
   isPractice,
   onRetry,
-  onExit
+  onExit,
+  onReturnToLobby
 }) {
   const [view, setView] = useState(isPractice ? 'podium' : 'countdown'); // countdown -> (team_victory) -> podium -> table
   const [count, setCount] = useState(3);
@@ -268,12 +269,23 @@ export default function ResultsScreen({
                  <Crown className="text-yellow-500 w-10 h-10"/>
                  <h2 className="text-2xl md:text-3xl font-black text-slate-800 dark:text-white tracking-wider">RESULTADOS FINALES</h2>
              </div>
-             <button 
-                onClick={onExit}
-                className="bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-white font-bold py-2 px-4 text-sm md:py-3 md:px-6 md:text-base rounded-xl transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-2 shadow-sm"
-             >
-                <ArrowLeft size={20}/> Volver al Inicio
-             </button>
+             <div className="flex gap-2">
+                 {/* Host Only Return Button */}
+                 {onReturnToLobby && (
+                     <button 
+                        onClick={onReturnToLobby}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 text-sm md:py-3 md:px-6 md:text-base rounded-xl transition-all border border-indigo-500 flex items-center gap-2 shadow-sm"
+                     >
+                        <Settings size={20}/> Volver a Sala
+                     </button>
+                 )}
+                 <button 
+                    onClick={onExit}
+                    className="bg-white hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-white font-bold py-2 px-4 text-sm md:py-3 md:px-6 md:text-base rounded-xl transition-all border border-slate-200 dark:border-slate-700 flex items-center gap-2 shadow-sm"
+                 >
+                    <ArrowLeft size={20}/> Volver al Inicio
+                 </button>
+             </div>
          </div>
 
          {/* Grid Header */}

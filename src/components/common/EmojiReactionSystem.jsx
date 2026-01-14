@@ -94,7 +94,7 @@ export default function EmojiReactionSystem({
         `}</style>
 
         {/* 1. Falling Container (Pointer events none to not block clicks) */}
-        <div className="fixed inset-0 pointer-events-none z-[100] overflow-hidden">
+        <div className="fixed inset-0 pointer-events-none z-[2000] overflow-hidden">
             {fallingEmojis.map(item => (
                 <div
                     key={item.id}
@@ -113,7 +113,7 @@ export default function EmojiReactionSystem({
         </div>
 
         {/* 2. Control Panel */}
-        <div className="fixed bottom-0 left-0 right-0 z-[90] flex justify-center pb-6 pointer-events-none">
+        <div className="fixed bottom-0 left-0 right-0 z-[1900] flex justify-center pb-6 pointer-events-none">
             {/* Inner box with pointer-events-auto */}
             <div className={`bg-white/90 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-white/10 rounded-full px-6 py-3 flex gap-4 shadow-2xl pointer-events-auto transition-all ${activeCount >= 10 ? 'opacity-50 grayscale' : 'hover:scale-105'}`}>
                 {EMOJI_LIST.map(type => (

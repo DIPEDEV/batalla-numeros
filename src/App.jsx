@@ -92,6 +92,8 @@ export default function App() {
             setChaosMode={game.setChaosMode}
             chaosFrequency={game.chaosFrequency}
             setChaosFrequency={game.setChaosFrequency}
+            addBot={game.addBot}
+            removeBot={game.removeBot}
         />
     );
   }
@@ -111,6 +113,9 @@ export default function App() {
             onExit={game.exitGame}
             showCheatSheet={game.practiceConfig?.showCheatSheet}
             combo={game.combo}
+            powerUp={game.powerUp}
+            activeEffects={game.activeEffects}
+            launchAttack={game.launchAttack}
         />
     );
   }
@@ -124,6 +129,7 @@ export default function App() {
             isPractice={game.practiceMode}
             onRetry={game.enterPracticeMode}
             onExit={game.exitGame}
+            onReturnToLobby={game.user?.uid === game.gameData.host ? game.returnToLobby : null}
         />
     );
   }
@@ -140,12 +146,14 @@ export default function App() {
     <>
       {content}
       {isOnline && (
-        <EmojiReactionSystem 
-            gameData={game.gameData}
-            sendReaction={game.sendReaction}
-            isLobby={game.gameData.status === 'lobby'}
-            isPlaying={game.gameData.status === 'playing'}
-        />
+        <div className="relative z-[1000]">
+            <EmojiReactionSystem 
+                gameData={game.gameData}
+                sendReaction={game.sendReaction}
+                isLobby={game.gameData.status === 'lobby'}
+                isPlaying={game.gameData.status === 'playing'}
+            />
+        </div>
       )}
     </>
   );

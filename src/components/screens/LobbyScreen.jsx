@@ -23,6 +23,8 @@ export default function LobbyScreen({
   setChaosMode,
   chaosFrequency,
   setChaosFrequency,
+  addBot,
+  removeBot,
   onBack
 }) {
   const isHost = gameData.host === user.uid;
@@ -74,6 +76,7 @@ export default function LobbyScreen({
                       <option value="0-100-sub">0 - 100 (Resta)</option>
                       <option value="0-100-math-mixed">0 - 100 (Mixto Operaciones)</option>
                       <option value="crazy-mode">0 - 100 (MODO LOCO 🔥)</option>
+                      <option value="hot-potato">LA BOMBA (Hot Potato 💣)</option>
                   </select>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 ml-1">
                     Selecciona la dificultad y el tipo de operaciones para la partida.
@@ -130,14 +133,33 @@ export default function LobbyScreen({
                       </div>
                   )}
                </div>
+
+               {/* Bot Controls (Moved to Settings) */}
+               <div className="pt-4 border-t border-slate-200 dark:border-white/10">
+                  <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 block">Agregar Bots</label>
+                  <div className="grid grid-cols-3 gap-2">
+                      <button onClick={() => addBot('easy')} className="flex flex-col items-center gap-1 p-2 bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:hover:bg-emerald-500/30 text-emerald-700 dark:text-emerald-300 rounded-lg transition-colors">
+                          <span className="text-lg">🤖</span>
+                          <span className="text-[10px] font-bold">Fácil</span>
+                      </button>
+                      <button onClick={() => addBot('medium')} className="flex flex-col items-center gap-1 p-2 bg-amber-100 hover:bg-amber-200 dark:bg-amber-500/20 dark:hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 rounded-lg transition-colors">
+                          <span className="text-lg">🤖</span>
+                          <span className="text-[10px] font-bold">Medio</span>
+                      </button>
+                      <button onClick={() => addBot('hard')} className="flex flex-col items-center gap-1 p-2 bg-rose-100 hover:bg-rose-200 dark:bg-rose-500/20 dark:hover:bg-rose-500/30 text-rose-700 dark:text-rose-300 rounded-lg transition-colors">
+                          <span className="text-lg">🤖</span>
+                          <span className="text-[10px] font-bold">Difícil</span>
+                      </button>
+                  </div>
+               </div> 
+
+               <button
+                 onClick={() => setShowSettings(false)}
+                 className="w-full mt-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors"
+               >
+                 Guardar Cambios
+               </button>
             </div>
-            
-            <button 
-              onClick={() => setShowSettings(false)}
-              className="w-full mt-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors"
-            >
-              Guardar Cambios
-            </button>
           </div>
         </div>
       )}
@@ -145,7 +167,7 @@ export default function LobbyScreen({
       {/* Abstract BG */}
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] pointer-events-none"></div>
 
-      <div className="w-full max-w-6xl glass-card relative z-10 flex flex-col lg:grid lg:grid-cols-12 h-auto min-h-0 lg:h-[85vh] lg:max-h-[800px] lg:overflow-hidden animate-slide-up bg-white/60 dark:bg-black/40 shadow-2xl backdrop-blur-xl">
+      <div className="w-full max-w-6xl glass-card relative z-10 flex flex-col lg:grid lg:grid-cols-12 h-[85vh] max-h-[800px] overflow-hidden animate-slide-up bg-white/60 dark:bg-black/40 shadow-2xl backdrop-blur-xl">
         
         {/* Mobile Header (Visible only on mobile) */}
         <div className="order-0 lg:hidden flex items-center justify-between p-6 pb-0 shrink-0 w-full animate-fade-in-down z-20">
@@ -191,7 +213,7 @@ export default function LobbyScreen({
              )}
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 min-h-0">
+          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 h-0 min-h-0">
              {gameData.teamMode ? (
                  <div className="grid grid-cols-2 gap-4 h-full">
                      {/* Red Team */}
@@ -242,6 +264,15 @@ export default function LobbyScreen({
                           )}
                         </div>
                         <span className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">{gameData.players[pid]?.name}</span>
+                        {isHost && gameData.players[pid]?.isBot && (
+                             <button 
+                                onClick={(e) => { e.stopPropagation(); removeBot(pid); }}
+                                className="ml-auto p-1.5 bg-red-100 hover:bg-red-200 text-red-600 rounded-full transition-colors"
+                                title="Eliminar Bot"
+                             >
+                                <X size={14} />
+                             </button>
+                        )}
                       </div>
                     ))}
                     {/* Dynamic placeholder generation - Adjust count calculations */}

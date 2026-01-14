@@ -1,7 +1,146 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Crown, Loader2, LogOut, BookOpen, X, List, Trophy, Settings } from 'lucide-react';
+import { Crown, Loader2, LogOut, BookOpen, X, List, Trophy, Settings, Skull, Snowflake, RefreshCw, Zap, Droplet } from 'lucide-react';
 import { getCheatSheetRules } from '../../lib/frenchNumbers';
 import ThemeToggle from '../common/ThemeToggle';
+
+  // --- Chaos Effects Helper Components ---
+  const MatrixRain = () => {
+      const canvasRef = useRef(null);
+      useEffect(() => {
+          const canvas = canvasRef.current;
+          const ctx = canvas.getContext('2d');
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+          
+          const fontSize = 16;
+          const columns = canvas.width / fontSize;
+          const drops = Array(Math.floor(columns)).fill(1);
+          
+          const draw = () => {
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.fillStyle = '#0F0';
+              ctx.font = 'bold ' + fontSize + 'px monospace';
+              
+              for(let i = 0; i < drops.length; i++) {
+                  const text = Math.floor(Math.random() * 10).toString();
+                  ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                  if(drops[i] * fontSize > canvas.height && Math.random() > 0.95)
+                      drops[i] = 0;
+                  drops[i]++;
+              }
+          };
+          const interval = setInterval(draw, 20);
+          return () => clearInterval(interval);
+      }, []);
+      return <canvas ref={canvasRef} className="absolute inset-0 z-0 pointer-events-none opacity-80 mix-blend-screen" />;
+  };
+
+  const BlackoutEffect = () => {
+      const [pos, setPos] = useState({ x: -200, y: -200 });
+      const [flicker, setFlicker] = useState(100);
+
+      useEffect(() => {
+          const move = (e) => setPos({ x: e.clientX, y: e.clientY });
+          window.addEventListener('mousemove', move);
+          
+          const interval = setInterval(() => {
+              if (Math.random() > 0.9) {
+                  setFlicker(Math.random() * 20);
+              } else {
+                  setFlicker(80 + Math.random() * 40);
+              }
+          }, 100);
+
+          return () => {
+              window.removeEventListener('mousemove', move);
+              clearInterval(interval);
+          };
+      }, []);
+
+      return (
+          <div 
+             className="fixed inset-0 z-[60] pointer-events-none transition-[background] duration-75"
+             style={{
+                 background: `radial-gradient(circle ${flicker}px at ${pos.x}px ${pos.y}px, transparent 0%, rgba(0,0,0,0.99) 100%)`
+             }}
+          ></div>
+      );
+  };
+
+  const InkEffect = () => (
+    <div className="absolute inset-0 z-40 pointer-events-none overflow-hidden">
+        {[...Array(6)].map((_, i) => (
+            <div key={i} 
+                className="absolute bg-slate-900 rounded-full opacity-90 animate-scale-up"
+                style={{
+                    top: `${Math.random() * 80 + 10}%`,
+                    left: `${Math.random() * 80 + 10}%`,
+                    width: `${Math.random() * 200 + 100}px`,
+                    height: `${Math.random() * 200 + 100}px`,
+                    transform: `scale(${Math.random() * 0.5 + 0.5})`,
+                    filter: 'blur(2px)'
+                }}
+            ></div>
+        ))}
+    </div>
+  );
+
+  const FlashEffect = () => (
+     <div className="fixed inset-0 z-[100] bg-white animate-flash pointer-events-none"></div>
+  );
+
+  const FreezeOverlay = () => (
+      <div className="absolute inset-0 z-40 bg-blue-500/10 backdrop-blur-[2px] flex items-center justify-center rounded-3xl border-4 border-blue-400 animate-pulse">
+          <Snowflake className="w-32 h-32 text-blue-500 animate-spin-slow opacity-50" />
+      </div>
+  );
+
+  const MidasEffect = () => (
+      <div className="fixed inset-0 z-[150] pointer-events-none overflow-hidden">
+          <div className="absolute inset-0 bg-yellow-500/20 mix-blend-overlay"></div>
+          <div className="absolute inset-0 border-[20px] border-yellow-400/50 animate-pulse"></div>
+          {[...Array(20)].map((_, i) => (
+              <div key={i} 
+                   className="absolute bg-yellow-300 rounded-full animate-float-up opacity-0"
+                   style={{
+                       left: `${Math.random() * 100}%`,
+                       top: `110%`,
+                       width: `${Math.random() * 10 + 5}px`,
+                       height: `${Math.random() * 10 + 5}px`,
+                       animationDelay: `${Math.random() * 2}s`,
+                       animationDuration: `${Math.random() * 3 + 2}s`
+                   }}
+              />
+          ))}
+      </div>
+  );
+
+  const GlitchEffect = () => (
+      <div className="fixed inset-0 z-[200] pointer-events-none mix-blend-exclusion opacity-50 overflow-hidden">
+          <style>{`
+            @keyframes glitch-anim-1 {
+              0% { clip-path: inset(20% 0 80% 0); transform: translate(-2px, 1px); }
+              20% { clip-path: inset(60% 0 10% 0); transform: translate(2px, -1px); }
+              40% { clip-path: inset(40% 0 50% 0); transform: translate(-2px, 2px); }
+              60% { clip-path: inset(80% 0 5% 0); transform: translate(2px, -2px); }
+              80% { clip-path: inset(10% 0 70% 0); transform: translate(-1px, 1px); }
+              100% { clip-path: inset(30% 0 50% 0); transform: translate(1px, -1px); }
+            }
+            @keyframes glitch-anim-2 {
+              0% { clip-path: inset(10% 0 60% 0); transform: translate(2px, -1px); }
+              20% { clip-path: inset(30% 0 20% 0); transform: translate(-2px, 1px); }
+              40% { clip-path: inset(70% 0 10% 0); transform: translate(2px, -2px); }
+              60% { clip-path: inset(20% 0 50% 0); transform: translate(-2px, 2px); }
+              80% { clip-path: inset(50% 0 30% 0); transform: translate(1px, -1px); }
+              100% { clip-path: inset(0% 0 80% 0); transform: translate(-1px, 1px); }
+            }
+          `}</style>
+          <div className="absolute inset-0 bg-red-500/20 translate-x-1 animate-[glitch-anim-1_0.2s_infinite_linear]"></div>
+          <div className="absolute inset-0 bg-blue-500/20 -translate-x-1 animate-[glitch-anim-2_0.2s_infinite_linear]"></div>
+          <div className="absolute inset-0 bg-green-500/10 animate-pulse"></div>
+      </div>
+  );
 
 export default function GameScreen({
   user,
@@ -14,7 +153,11 @@ export default function GameScreen({
   isPractice,
   onExit,
   showCheatSheet,
-  combo
+
+  combo,
+  powerUp,
+  activeEffects = [],
+  launchAttack
 }) {
   const isHost = gameData.host === user.uid;
   const isSpectator = isHost && !gameData.hostPlays && !isPractice; // Host only spectator in multiplayer
@@ -57,55 +200,53 @@ export default function GameScreen({
       setShowExitConfirm(false);
   };
 
-  // --- Chaos Effects Helper Components ---
-  const MatrixRain = () => {
-      const canvasRef = useRef(null);
-      useEffect(() => {
-          const canvas = canvasRef.current;
-          const ctx = canvas.getContext('2d');
-          canvas.width = window.innerWidth;
-          canvas.height = window.innerHeight;
-          
-          const fontSize = 14;
-          const columns = canvas.width / fontSize;
-          const drops = Array(Math.floor(columns)).fill(1);
-          
-          const draw = () => {
-              ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-              ctx.fillStyle = '#0F0';
-              ctx.font = fontSize + 'px monospace';
-              
-              for(let i = 0; i < drops.length; i++) {
-                  const text = Math.floor(Math.random() * 10).toString();
-                  ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-                  if(drops[i] * fontSize > canvas.height && Math.random() > 0.975)
-                      drops[i] = 0;
-                  drops[i]++;
-              }
-          };
-          const interval = setInterval(draw, 33);
-          return () => clearInterval(interval);
-      }, []);
-      return <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none opacity-50" />;
-  };
+  // --- MODO JUGADOR DATA ---
+  const playerData = gameData.players[user.uid];
+  const myScore = playerData?.score || 0;
+  // Fallback to global currentRound if player-specific is missing (Practice Mode uses global now)
+  const myCurrentQ = playerData?.currentQuestion || gameData.currentRound;
 
-  const BlackoutEffect = () => {
-      const [pos, setPos] = useState({ x: -100, y: -100 });
-      useEffect(() => {
-          const move = (e) => setPos({ x: e.clientX, y: e.clientY });
-          window.addEventListener('mousemove', move);
-          return () => window.removeEventListener('mousemove', move);
-      }, []);
-      return (
-          <div 
-             className="fixed inset-0 z-50 pointer-events-none"
-             style={{
-                 background: `radial-gradient(circle 150px at ${pos.x}px ${pos.y}px, transparent 0%, rgba(0,0,0,0.98) 100%)`
-             }}
-          ></div>
-      );
-  };
+  // Team Scores Calculation
+  const redScore = Object.values(gameData.players).filter(p => p.team === 'red').reduce((acc, p) => acc + (p.score || 0), 0);
+  const blueScore = Object.values(gameData.players).filter(p => p.team === 'blue').reduce((acc, p) => acc + (p.score || 0), 0);
+
+  // --- POWER-UP & EFFECT LOGIC ---
+  // Filter effects that apply to ME
+  const myEffects = activeEffects.filter(e => {
+      // 1. Global effects (no targetId) -> affect everyone EXCEPT sender
+      if (!e.targetId) {
+          return e.sender !== user.displayName; // Don't attack self with global attacks
+      }
+      // 2. Targeted effects -> affect specific targetId
+      return e.targetId === user.uid;
+  });
+
+  // SHIELD LOGIC: If I have a shield, block NEGATIVE effects
+  const hasShield = myEffects.some(e => e.type === 'SHIELD');
+  
+  // Filter out negative effects if shielded
+  const effectiveEffects = hasShield ? myEffects.filter(e => e.type === 'SHIELD' || e.type === 'BOOST') : myEffects;
+
+  const hasInk = effectiveEffects.some(e => e.type === 'INK');
+  const hasFreeze = effectiveEffects.some(e => e.type === 'FREEZE');
+  const hasShake = effectiveEffects.some(e => e.type === 'SHAKE');
+  const hasFlash = effectiveEffects.some(e => e.type === 'FLASH');
+  const hasSwap = effectiveEffects.some(e => e.type === 'SWAP');
+  const hasBoost = effectiveEffects.some(e => e.type === 'BOOST'); // New
+
+  // Swap Logic (Memoized to prevent jitter on every render, but needs to update when Q changes or Swap activates)
+  const currentOptions = React.useMemo(() => {
+      if (!myCurrentQ?.options) return [];
+      const opts = [...myCurrentQ.options];
+      if (hasSwap) {
+          // deterministic swap based on Q to be consistent? Or random?
+          // Random is fine as long as it doesn't re-run.
+          // We can just reverse it.
+          return opts.reverse();
+      }
+      return opts;
+  }, [myCurrentQ, hasSwap]);
+
   // --- COUNTDOWN OVERLAY ---
   const [countdown, setCountdown] = useState(3);
   
@@ -193,8 +334,14 @@ export default function GameScreen({
                            {p.photoURL && (
                              <img src={p.photoURL} alt={p.name} className="w-10 h-10 rounded-full border-2 border-white dark:border-slate-700 shadow-xl object-cover" />
                            )}
-                          <span className="text-2xl font-bold text-slate-800 dark:text-white">
+                          <span className="text-2xl font-bold text-slate-800 dark:text-white relative">
                               {p.name}
+                              {gameData.activeEvent?.type === 'BOMB' && gameData.activeEvent.holder === p.id && (
+                                  <span className="absolute -top-6 -right-6 text-4xl animate-bounce filter drop-shadow-lg z-20">💣</span>
+                              )}
+                              {/* Powerups Indicators */}
+                              {p.activeEffects?.some(e => e.type === 'SHIELD') && <span className="absolute -top-4 -right-12 text-xl animate-pulse">🛡️</span>}
+                              {p.activeEffects?.some(e => e.type === 'BOOST') && <span className="absolute -top-4 -right-4 text-xl animate-pulse text-amber-400">⚡</span>}
                           </span>
                       </div>
                       <div className="flex items-center gap-4">
@@ -219,18 +366,50 @@ export default function GameScreen({
     );
   }
 
-  // --- MODO JUGADOR ---
-  const playerData = gameData.players[user.uid];
-  const myScore = playerData?.score || 0;
-  // Fallback to global currentRound if player-specific is missing (Practice Mode uses global now)
-  const myCurrentQ = playerData?.currentQuestion || gameData.currentRound;
+  const getPowerUpIcon = (type) => {
+      switch(type) {
+          case 'INK': return <Droplet size={24} />;
+          case 'FREEZE': return <Snowflake size={24} />;
+          case 'SHAKE': return <Zap size={24} />;
+          case 'SWAP': return <RefreshCw size={24} />;
+          case 'FLASH': return <Zap size={24} className="text-yellow-400" />;
+          case 'SHIELD': return <Crown size={24} className="text-blue-400" />; // Fallback icon?
+          case 'BOOST': return <Trophy size={24} className="text-orange-400" />;
+          default: return <Skull size={24} />;
+      }
+  };
 
-  // Team Scores Calculation
-  const redScore = Object.values(gameData.players).filter(p => p.team === 'red').reduce((acc, p) => acc + (p.score || 0), 0);
-  const blueScore = Object.values(gameData.players).filter(p => p.team === 'blue').reduce((acc, p) => acc + (p.score || 0), 0);
+  const getPowerUpName = (type) => {
+      switch(type) {
+          case 'INK': return 'TINTA';
+          case 'FREEZE': return 'HIELO';
+          case 'SHAKE': return 'TERREMOTO';
+          case 'SWAP': return 'CONFUSIÓN';
+          case 'FLASH': return 'FLASH';
+          case 'SHIELD': return 'ESCUDO';
+          case 'BOOST': return 'BOOST X2';
+          default: return 'ATAQUE';
+      }
+  };
 
   return (
-    <div className="min-h-screen relative flex overflow-hidden font-sans">
+    <div className={`min-h-screen relative flex overflow-hidden font-sans ${hasShake ? 'animate-shake-hard' : ''} ${hasShield ? 'ring-8 ring-inset ring-blue-400/50' : ''} ${hasBoost ? 'ring-8 ring-inset ring-orange-500/50' : ''}`}>
+      
+      {/* SHIELD OVERLAY INDICATOR */}
+      {hasShield && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] bg-blue-600 text-white px-4 py-1 rounded-full text-xs font-bold animate-pulse shadow-[0_0_20px_rgba(37,99,235,0.6)] flex items-center gap-2 border-2 border-blue-400">
+             <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+             ESCUDO ACTIVO
+          </div>
+      )}
+      
+      {/* BOOST OVERLAY INDICATOR */}
+      {hasBoost && (
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-[60] bg-orange-600 text-white px-4 py-1 rounded-full text-xs font-bold animate-pulse shadow-[0_0_20px_rgba(234,88,12,0.6)] flex items-center gap-2 border-2 border-orange-400">
+             <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+             BOOST X2 ACTIVO
+          </div>
+      )}
       
       {/* --- AMBIENT BACKGROUND (Restored) --- */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
@@ -275,12 +454,40 @@ export default function GameScreen({
         </div>
       )}
       
-      {/* --- CHAOS EFFECTS --- */}
-      {gameData.activeEvent?.type === 'RAIN' && <MatrixRain />}
-      {gameData.activeEvent?.type === 'BLACKOUT' && <BlackoutEffect />}
+      {/* --- CHAOS & POWER-UP EFFECTS --- */}
+      {/* Matrix Rain needs high Z but below UI if possible, or overlay. Let's make it overlay everything for chaos. */}
+      {gameData.activeEvent?.type === 'RAIN' && <div className="fixed inset-0 z-[50] pointer-events-none"><MatrixRain /></div>}
+      {gameData.activeEvent?.type === 'BLACKOUT' && <div className="fixed inset-0 z-[200] pointer-events-none"><BlackoutEffect /></div>}
+      
+      {gameData.activeEvent?.type === 'GLITCH' && <GlitchEffect />}
+      {gameData.activeEvent?.type === 'MIDAS' && <MidasEffect />}
+
+      {hasInk && <InkEffect />}
+      {hasFlash && <FlashEffect />}
+      
+      {/* ATTACK BUTTON */}
+      {!isPractice && powerUp && (
+          <div className="absolute bottom-8 right-8 z-[60] animate-bounce-in">
+              <button 
+                  onClick={launchAttack}
+                  className="group relative px-6 py-4 bg-rose-600 hover:bg-rose-500 text-white font-black text-xl rounded-2xl shadow-[0_10px_30px_rgba(225,29,72,0.5)] hover:shadow-[0_15px_40px_rgba(225,29,72,0.7)] transition-all flex items-center gap-3 active:scale-95 border-4 border-rose-800"
+              >
+                  <div className="absolute inset-0 rounded-xl overflow-hidden">
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full group-hover:animate-shine"></div>
+                  </div>
+                  <span className="bg-rose-800 p-2 rounded-lg group-hover:rotate-12 transition-transform">
+                      {getPowerUpIcon(powerUp)}
+                  </span>
+                  <div className="flex flex-col items-start leading-none">
+                      <span className="text-[10px] text-rose-200 tracking-widest uppercase">DISPONIBLE</span>
+                      <span className="text-xl italic drop-shadow-md">{getPowerUpName(powerUp)}</span>
+                  </div>
+              </button>
+          </div>
+      )}
 
       {/* Main Game Area */}
-      <div className={`flex-1 flex flex-col relative z-10 transition-all duration-300 ${sidePanelOpen ? 'mr-0 lg:mr-80' : ''} ${gameData.activeEvent?.type === 'MIRROR' ? 'scale-x-[-1]' : ''}`}>
+      <div className={`flex-1 flex flex-col relative z-10 transition-all duration-300 ${sidePanelOpen ? 'mr-0 lg:mr-80' : ''} ${gameData.activeEvent?.type === 'MIRROR' ? 'scale-x-[-1] skew-x-2 skew-y-1' : ''} ${gameData.activeEvent?.type === 'GLITCH' ? 'opacity-80 scale-[1.02]' : ''}`}>
         
         {/* Top Left Exit Button (Absolute, matching Results) */}
         <div className="absolute top-6 left-6 z-50 flex gap-2">
@@ -291,7 +498,7 @@ export default function GameScreen({
         </div>
 
         {/* Header */}
-        <div className="bg-white/80 dark:bg-slate-900/50 backdrop-blur-md border-b border-slate-200 dark:border-white/10 p-4 flex justify-between items-center shadow-lg z-20 pl-40 transition-colors"> 
+        <div className={`bg-white/80 dark:bg-slate-900/50 backdrop-blur-md border-b border-slate-200 dark:border-white/10 p-4 flex justify-between items-center shadow-lg z-20 pl-40 transition-colors ${gameData.activeEvent?.type === 'MIDAS' ? 'border-yellow-400 bg-yellow-900/20' : ''}`}> 
           
           <div className="flex items-center gap-6">
              {/* TEAM SCORE BAR (If Team Mode) */}
@@ -316,9 +523,12 @@ export default function GameScreen({
                     {gameData.activeEvent?.type === 'DOUBLE' && (
                         <span className="bg-orange-500 text-white text-[9px] px-1.5 py-0.5 rounded animate-pulse">x2 PUNTOS</span>
                     )}
+                    {gameData.activeEvent?.type === 'MIDAS' && (
+                        <span className="bg-yellow-500 text-black text-[9px] px-1.5 py-0.5 rounded animate-bounce shadow-lg shadow-yellow-500/50">x3 ORO!!!</span>
+                    )}
                </span>
                <div className="flex items-center gap-3 relative">
-                   <span key={myScore} className="text-4xl font-black text-slate-800 dark:text-white tracking-tight drop-shadow-md animate-score-pop">{myScore}</span>
+                   <span key={myScore} className={`text-4xl font-black tracking-tight drop-shadow-md animate-score-pop ${gameData.activeEvent?.type === 'MIDAS' ? 'text-yellow-400 drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]' : 'text-slate-800 dark:text-white'}`}>{myScore}</span>
                    
                    {/* Point Feedback Animation (Popping next to score) */}
                     {localFeedback && (
@@ -351,7 +561,7 @@ export default function GameScreen({
         <div className="flex-1 flex flex-col items-center justify-center p-4 relative">
            
            {myCurrentQ ? (
-            <div className="relative z-10 w-full max-w-2xl animate-fade-in-up">
+            <div className={`relative z-10 w-full max-w-2xl animate-fade-in-up ${gameData.activeEvent?.type === 'GRAVITY' ? 'min-h-[500px] flex flex-col justify-center' : ''}`}>
               <div className="mb-16 text-center relative">
                 
                 {/* COMBO INDICATOR */}
@@ -387,7 +597,7 @@ export default function GameScreen({
                    </div>
                 )}
 
-                <div className="inline-block px-4 py-1 rounded-full bg-white/40 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-indigo-600 dark:text-indigo-300 text-xs font-bold uppercase tracking-[0.2em] mb-6 backdrop-blur-sm">
+                <div className={`inline-block px-4 py-1 rounded-full bg-white/40 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-indigo-600 dark:text-indigo-300 text-xs font-bold uppercase tracking-[0.2em] mb-6 backdrop-blur-sm ${gameData.activeEvent?.type === 'GRAVITY' ? 'animate-bounce' : ''}`}>
                     {myCurrentQ.displayMode === 'math' ? 'RESUELVE' : myCurrentQ.displayMode === 'reverse-math' ? 'ENCUENTRA LA OPERACIÓN' : 'TRADUCE AL NÚMERO'}
                 </div>
                 
@@ -415,13 +625,25 @@ export default function GameScreen({
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4 md:gap-6">
-                {myCurrentQ.options.map((option) => (
+              <div className={`grid grid-cols-2 gap-4 md:gap-6 ${gameData.activeEvent?.type === 'GRAVITY' ? 'relative h-[300px] block' : ''}`}>
+                {currentOptions.map((option, idx) => (
                   <button
                     key={option}
+                    disabled={hasFreeze}
                     onClick={() => handleAnswer(option)}
-                    className="group relative bg-white/40 dark:bg-white/5 hover:bg-indigo-100/50 dark:hover:bg-indigo-600/20 active:bg-indigo-200/50 dark:active:bg-indigo-600/40 text-slate-700 dark:text-slate-200 hover:text-indigo-700 dark:hover:text-white transition-all duration-150 font-bold py-6 px-4 rounded-3xl border-2 border-white/50 dark:border-white/10 hover:border-indigo-400 shadow-xl hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:-translate-y-1 active:scale-95 overflow-hidden backdrop-blur-sm flex flex-col items-center justify-center min-h-[140px]"
+                    style={gameData.activeEvent?.type === 'GRAVITY' ? {
+                        position: 'absolute',
+                        top: `${[10, 60, 20, 50][idx]}%`,
+                        left: `${[10, 10, 60, 60][idx]}%`,
+                        animation: `float-random ${3 + idx}s infinite alternate ease-in-out`
+                    } : {}}
+                    className={`group relative bg-white/40 dark:bg-white/5 hover:bg-indigo-100/50 dark:hover:bg-indigo-600/20 active:bg-indigo-200/50 dark:active:bg-indigo-600/40 text-slate-700 dark:text-slate-200 hover:text-indigo-700 dark:hover:text-white transition-all duration-150 font-bold py-6 px-4 rounded-3xl border-2 border-white/50 dark:border-white/10 hover:border-indigo-400 shadow-xl hover:shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:-translate-y-1 active:scale-95 overflow-hidden backdrop-blur-sm flex flex-col items-center justify-center min-h-[140px]
+                        ${hasFreeze ? 'grayscale opacity-50 cursor-not-allowed pointer-events-none' : ''}
+                        ${gameData.activeEvent?.type === 'MIDAS' ? 'border-yellow-400 bg-yellow-100/20 text-yellow-800 dark:text-yellow-100' : ''}
+                        ${gameData.activeEvent?.type === 'GRAVITY' ? 'w-40 h-40 rounded-full !min-h-0' : ''}
+                    `}
                   >
+                    {hasFreeze && <FreezeOverlay />}
                     <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     
                     {myCurrentQ.displayMode === 'reverse-math' ? (() => {

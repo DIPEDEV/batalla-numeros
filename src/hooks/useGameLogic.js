@@ -58,9 +58,9 @@ export function useGameLogic() {
   const [chaosMode, setChaosMode] = useState(false); // Chaos Mode Toggle
   const [chaosFrequency, setChaosFrequency] = useState(20); // Frequency in seconds
 
-  // Auto-enable Chaos Mode when "Modo Loco" is selected
+  // Auto-enable Chaos Mode when "Modo Loco" or "Hot Potato" is selected
   useEffect(() => {
-    if (lobbyNumberRange === 'crazy-mode') {
+    if (lobbyNumberRange === 'crazy-mode' || lobbyNumberRange === 'hot-potato') {
       setChaosMode(true);
     }
   }, [lobbyNumberRange]);
@@ -76,7 +76,10 @@ export function useGameLogic() {
   // --- In-Game Local State ---
   const [timeLeft, setTimeLeft] = useState(0);
   const [localFeedback, setLocalFeedback] = useState(null);
+
   const [combo, setCombo] = useState(0); // Added Combo State
+  const [powerUp, setPowerUp] = useState(null); // Current held power-up
+  const [activeEffects, setActiveEffects] = useState([]); // Effects affecting ME
   
   // Refs for timers
   const timerRef = useRef(null);
@@ -167,6 +170,15 @@ export function useGameLogic() {
         const data = snapshot.data();
         setGameData(data);
 
+        // Sync Active Effects for ME
+        if (data.players && user && data.players[user.uid]) {
+             const now = Date.now();
+             const myEffects = data.players[user.uid].activeEffects || [];
+             // Filter expired locally for UI (Firestore cleanup is harder/lazy)
+             const active = myEffects.filter(e => e.expiresAt > now);
+             setActiveEffects(active);
+        }
+
         // Sync local timer with server end time if playing
         if (data.status === 'playing' && data.endTime) {
             const end = data.endTime.toDate().getTime();
@@ -241,6 +253,7 @@ export function useGameLogic() {
             case "0-100-sub": return 15000;
             case "0-100-math-mixed": return 15000;
             case "crazy-mode": return 20000;
+            case "hot-potato": return 15000; // Standardize hot potato question time
             default: return 5000;
         }
     };
@@ -275,38 +288,160 @@ export function useGameLogic() {
     }, [gameData, practiceMode, user?.uid, practiceConfig.numberRange, lobbyNumberRange]);
 
     // --- CHAOS MODE LOGIC ---
-    const CHAOS_EVENTS = ['MIRROR', 'RAIN', 'DOUBLE', 'BLACKOUT'];
+    const CHAOS_EVENTS = ['MIRROR', 'RAIN', 'DOUBLE', 'BLACKOUT', 'GRAVITY', 'GLITCH', 'MIDAS'];
+    const nextChaosTrigger = useRef(0);
     
     useEffect(() => {
         if (!gameData || gameData.status !== 'playing' || !chaosMode || gameData.host !== user?.uid || practiceMode) return;
 
         const interval = setInterval(async () => {
-             // 10% chance to skip a cycle? No, user wants frequency.
-             // Just trigger random event.
-             const eventType = CHAOS_EVENTS[Math.floor(Math.random() * CHAOS_EVENTS.length)];
-             const duration = 10000; // 10 seconds per event
-             
-             // Activate Event
-             const gameRef = doc(db, 'games', activeGameId);
-             await updateDoc(gameRef, {
-                 activeEvent: {
-                     type: eventType,
-                     startTime: Date.now(),
-                     duration: duration
-                 }
-             });
+             const now = Date.now();
+             const isHotPotatoMode = gameData.config?.range === 'hot-potato';
 
-             // Clear Event after duration
-             setTimeout(async () => {
-                 await updateDoc(gameRef, {
-                     activeEvent: null // OR deleteField()
-                 });
-             }, duration);
-             
-        }, chaosFrequency * 1000);
+             // 1. Check if current Event EXPIRED
+             if (gameData.activeEvent && gameData.activeEvent.expiresAt <= now) {
+                 
+                 // Handle Bomb Explosion
+                 if (gameData.activeEvent.type === 'BOMB') {
+                     const holder = gameData.activeEvent.holder;
+                     const gameRef = doc(db, 'games', activeGameId);
+                     await updateDoc(gameRef, {
+                          activeEvent: null,
+                          [`players.${holder}.score`]: Math.floor((gameData.players[holder]?.score || 0) / 2) 
+                     });
+                 } else {
+                     // Just Clear Event
+                     const gameRef = doc(db, 'games', activeGameId);
+                     await updateDoc(gameRef, { activeEvent: null });
+                 }
+                 
+                 // Set next trigger time (wait frequency seconds before next event)
+                 // For Hot Potato, we want it almost immediate? Let's say 2s breather.
+                 // For Normal Chaos, respect chaosFrequency.
+                 const cooldown = isHotPotatoMode ? 2000 : (chaosFrequency * 1000);
+                 nextChaosTrigger.current = now + cooldown;
+                 return; 
+             }
+
+             // 2. Trigger New Event
+             // Only if no event active AND time is reached
+             if (!gameData.activeEvent && now >= nextChaosTrigger.current) {
+                 
+                 // HOT POTATO MODE ENFORCEMENT
+                 let eventType = 'BOMB';
+                 let duration = 15000;
+
+                 if (!isHotPotatoMode) {
+                    // Random Chaos Mode
+                    eventType = CHAOS_EVENTS[Math.floor(Math.random() * CHAOS_EVENTS.length)];
+                    duration = eventType === 'BOMB' ? 15000 : 10000; // General events 10s
+                 }
+                 
+                 const newEvent = {
+                     type: eventType,
+                     expiresAt: now + duration,
+                     id: Math.random()
+                 };
+
+                 if (eventType === 'BOMB') {
+                     // Assign random holder
+                     const playerIds = Object.keys(gameData.players);
+                     const randomHolder = playerIds[Math.floor(Math.random() * playerIds.length)];
+                     newEvent.holder = randomHolder;
+                 }
+                 
+                 const gameRef = doc(db, 'games', activeGameId);
+                 await updateDoc(gameRef, { activeEvent: newEvent });
+             }
+
+        }, 1000); // Check every second for better responsiveness
 
         return () => clearInterval(interval);
-    }, [gameData?.status, chaosMode, chaosFrequency, user?.uid, activeGameId, practiceMode]);
+    }, [gameData, chaosMode, chaosFrequency, user?.uid, practiceMode]);
+
+    // --- BOT SIMULATION LOOP (HOST ONLY) ---
+    useEffect(() => {
+        if (!gameData || gameData.status !== 'playing' || gameData.host !== user?.uid || practiceMode) return;
+
+        const interval = setInterval(async () => {
+            const now = Date.now();
+            const updates = {};
+            let hasUpdates = false;
+
+            Object.entries(gameData.players).forEach(([pid, p]) => {
+                if (!p.isBot) return;
+
+                // Initialize nextActionTime if missing
+                if (!p.nextActionTime) {
+                    updates[`players.${pid}.nextActionTime`] = now + Math.random() * 2000 + 1000; // Start delay
+                    hasUpdates = true;
+                    return;
+                }
+
+                // Check if it's time to act
+                if (now >= p.nextActionTime) {
+                    // ACT!
+                    const difficulty = p.difficulty || 'medium';
+                    let accuracy = 0.7;
+                    let minDelay = 3000;
+                    let maxDelay = 6000;
+
+                    switch(difficulty) {
+                        case 'easy': accuracy = 0.6; minDelay=4000; maxDelay=7000; break;
+                        case 'medium': accuracy = 0.8; minDelay=2500; maxDelay=5000; break;
+                        case 'hard': accuracy = 0.98; minDelay=500; maxDelay=1500; break; 
+                        case 'expert': accuracy = 0.99; minDelay=300; maxDelay=800; break;
+                    }
+
+                    // Determine Outcome
+                    const isCorrect = Math.random() < accuracy;
+                    
+                    // Calculate Score Delta
+                    // Bots get standard points processing simulation
+                    // decayRate etc. simplified:
+                    // TRICK: We use a "simulated reaction time" that is faster than their actual delay
+                    // so they score decent points even if they play slowly.
+                    const reactionTime = (minDelay + maxDelay) / 2 / 1000;
+                    const simulatedScoreTime = reactionTime * 0.4; // They "think" fast but type slow?
+                    
+                    const decayRate = 400 / 5; // Assuming 5s max
+                    let potential = Math.floor(500 - (decayRate * simulatedScoreTime)); 
+                    potential = Math.max(150, potential); // Boost min score too
+
+                    const currentScore = p.score || 0;
+                    let newScore = currentScore;
+                    
+                    if (isCorrect) {
+                        // Bot Combo logic? Simplified: just give them points + small bonus
+                        newScore += potential; 
+                        
+                        // Next Question
+                         const nextRound = generateRound(gameData.config?.range || "0-100");
+                         nextRound.generatedAt = now;
+                         updates[`players.${pid}.currentQuestion`] = nextRound;
+
+                    } else {
+                        newScore = Math.max(0, newScore - Math.floor(potential/2));
+                    }
+
+                    updates[`players.${pid}.score`] = newScore;
+                    
+                    // Set next action time
+                    const delay = Math.random() * (maxDelay - minDelay) + minDelay;
+                    updates[`players.${pid}.nextActionTime`] = now + delay;
+                    hasUpdates = true;
+                }
+            });
+
+            if (hasUpdates) {
+                 const gameRef = doc(db, 'games', activeGameId);
+                 await updateDoc(gameRef, updates).catch(err => console.log("Bot update error", err));
+            }
+
+        }, 200); // Check every 200ms for smoother bot actions
+
+        return () => clearInterval(interval);
+    }, [gameData, user?.uid, activeGameId, practiceMode]);
 
 
     const handleTimeoutPenalty = async () => {
@@ -597,9 +732,21 @@ export function useGameLogic() {
           // Formula: 1 + (combo * 0.2)
           let multiplier = 1 + (Math.min(newCombo, 5) * 0.2);
 
+          // Manual Boost (Self PowerUp)
+          if (activeEffects.some(e => e.type === 'BOOST')) {
+              multiplier *= 2;
+          }
+
+
+
           // Chaos: Double Multiplier
           if (gameData?.activeEvent?.type === 'DOUBLE') {
               multiplier *= 2; 
+          }
+          
+          // Chaos: MIDAS (Triple Multiplier)
+          if (gameData?.activeEvent?.type === 'MIDAS') {
+              multiplier *= 3;
           }
           
           points = Math.round(potentialPoints * multiplier);
@@ -607,6 +754,7 @@ export function useGameLogic() {
           // Reset Combo
           newCombo = 0;
           setCombo(0);
+          setPowerUp(null); // Lose power-up on miss? Maybe keep it. Let's keep it for now but maybe reset progress.
 
           // Penalty: Half of potential (no multiplier on penalty)
           points = -Math.floor(potentialPoints / 2);
@@ -617,9 +765,33 @@ export function useGameLogic() {
           }
       }
 
+      // POWER-UP ACQUISITION (Streak of 3)
+      if (isCorrect && newCombo > 0 && newCombo % 3 === 0) {
+          const POWER_UPS = ['INK', 'FREEZE', 'SHAKE', 'SWAP', 'FLASH', 'SHIELD', 'BOOST']; 
+          const newPower = POWER_UPS[Math.floor(Math.random() * POWER_UPS.length)];
+          setPowerUp(newPower);
+          setLocalFeedback({ val: `¡OBTUVISTE ${newPower}!`, type: 'good' }); 
+      }
+      
+      // BOMB: PASS IF CORRECT (Chaos Event)
+      if (isCorrect && gameData?.activeEvent?.type === 'BOMB' && gameData.activeEvent.holder === user.uid) {
+           const candidates = Object.keys(gameData.players).filter(pid => pid !== user.uid);
+           if (candidates.length > 0) {
+               const nextHolder = candidates[Math.floor(Math.random() * candidates.length)];
+               const gameRef = doc(db, 'games', activeGameId);
+               
+               // Use dot notation to update nested field
+               updateDoc(gameRef, {
+                   'activeEvent.holder': nextHolder
+               }).catch(e => console.error("Bomb pass failed", e));
+               
+               setLocalFeedback({ val: `¡BOMBA PASADA!`, type: 'good' }); 
+           }
+      }
+
       // Feedback UI
       const feedbackText = isCorrect 
-          ? `+${points}${newCombo > 0 ? ` (x${(1 + Math.min(newCombo, 5) * 0.2).toFixed(1)})${gameData?.activeEvent?.type === 'DOUBLE' ? ' 🔥 x2' : ''}` : ''}` 
+          ? `+${points}${newCombo > 0 ? ` (x${(1 + Math.min(newCombo, 5) * 0.2).toFixed(1)})${gameData?.activeEvent?.type === 'DOUBLE' ? ' 🔥 x2' : ''}${gameData?.activeEvent?.type === 'MIDAS' ? ' 👑 x3' : ''}` : ''}` 
           : `${points}`;
       
       setLocalFeedback({ val: feedbackText, type: isCorrect ? 'good' : 'bad' });
@@ -769,6 +941,68 @@ export function useGameLogic() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
   };
+
+  const launchAttack = async () => {
+      if (!powerUp || !activeGameId || !gameData) return;
+
+      let targetId = null;
+
+      // 1. Determine Target
+      if (['SHIELD', 'BOOST'].includes(powerUp)) {
+          // Self-Target
+          targetId = user.uid;
+      } else {
+          // Enemy Target (Standard Logic)
+          const myId = user.uid;
+          const candidates = Object.entries(gameData.players)
+              .filter(([pid, p]) => pid !== myId && (!p.team || p.team !== gameData.players[myId]?.team))
+              .sort((a, b) => b[1].score - a[1].score);
+
+          if (candidates.length > 0) {
+              targetId = candidates[0][0]; // Leader
+          }
+      }
+
+      if (!targetId) {
+          setLocalFeedback({ val: "¡No hay objetivos!", type: "info" });
+          setTimeout(() => setLocalFeedback(null), 1000);
+          return;
+      }
+
+      // 2. Optimistic UI Update (Immediate Feedback)
+      const usedPowerUp = powerUp;
+      setPowerUp(null); // Clear immediately
+      setLocalFeedback({ val: `¡${usedPowerUp} LANZADO!`, type: 'good' }); 
+      
+      // 3. Apply Effect via Firestore
+      const effectDuration = {
+          'INK': 3000,
+          'FREEZE': 2000,
+          'SHAKE': 4000,
+          'SWAP': 5000,
+          'FLASH': 5000,  
+          'SHIELD': 8000, 
+          'BOOST': 8000
+      }[usedPowerUp] || 3000;
+
+      try {
+          const gameRef = doc(db, 'games', activeGameId);
+          await updateDoc(gameRef, {
+             [`players.${targetId}.activeEffects`]: arrayUnion({
+                 type: usedPowerUp,
+                 expiresAt: Date.now() + effectDuration,
+                 sender: username, // Include sender for notification logic
+                 targetId: targetId, // Explicit target ID
+                 id: Math.random() // Unique ID
+             })
+          });
+      } catch (err) {
+          console.error("Attack error:", err);
+          setPowerUp(usedPowerUp); // Revert on failure
+          setLocalFeedback({ val: "Error al lanzar", type: "bad" });
+      }
+  };
+
 
   const sendReaction = async (emojiType) => {
       if (!activeGameId || practiceMode) return;
@@ -1008,6 +1242,96 @@ export function useGameLogic() {
         }
     };
 
+    const addBot = async (difficulty) => {
+        if (!activeGameId || !user) return;
+        
+        // Check for max players
+        const currentCount = gameData.playerList.length;
+        const maxPlayers = gameData.maxPlayers || lobbyMaxPlayers;
+        if (currentCount >= maxPlayers) {
+            setError("La sala está llena");
+            return;
+        }
+
+        const botId = `bot-${Date.now()}-${Math.floor(Math.random()*1000)}`; // more unique
+        
+        const names = [
+            'Santiago', 'Mateo', 'Sebastián', 'Leonardo', 'Felipe', 'Eduardo', 'Daniel', 'Emilio',
+            'Sofía', 'Valentina', 'Isabella', 'Camila', 'Valeria', 'Mariana', 'Victoria', 'Gabriela',
+            'Diego', 'Alejandro', 'Gabriel', 'Samuel', 'David', 'Lucas', 'Nicolás', 'Joaquín'
+        ];
+        
+        // Pick random name
+        const randomName = names[Math.floor(Math.random() * names.length)];
+        
+        const botName = randomName;
+        // Avatar logic?
+        
+        const gameRef = doc(db, 'games', activeGameId);
+        try {
+             await updateDoc(gameRef, {
+                  playerList: arrayUnion(botId),
+                  [`players.${botId}`]: {
+                      name: botName,
+                      isBot: true,
+                      difficulty: difficulty,
+                      score: 0,
+                      joinedAt: serverTimestamp(),
+                      photoURL: `https://api.dicebear.com/7.x/bottts/svg?seed=${botId}`, // Cool bot avatar
+                      team: gameData.teamMode ? (Math.random() > 0.5 ? 'red' : 'blue') : null
+                  }
+             });
+        } catch (err) {
+            console.error("Error adding bot:", err);
+            setError("Error al agregar bot");
+        }
+    };
+
+    const removeBot = async (botId) => {
+        if (!activeGameId) return;
+        const gameRef = doc(db, 'games', activeGameId);
+        try {
+            await updateDoc(gameRef, {
+                playerList: arrayRemove(botId),
+                [`players.${botId}`]: deleteField()
+            });
+        } catch (err) {
+            console.error("Remove bot error:", err);
+        }
+    };
+
+    const returnToLobby = async () => {
+        if (!activeGameId || !gameData) return;
+        const gameRef = doc(db, 'games', activeGameId);
+        setLoading('resetting');
+        
+        try {
+            // Reset scores but keep players
+            const resetPlayers = {};
+            Object.keys(gameData.players).forEach(pid => {
+                resetPlayers[`players.${pid}.score`] = 0;
+                resetPlayers[`players.${pid}.currentQuestion`] = deleteField();
+                resetPlayers[`players.${pid}.nextActionTime`] = deleteField(); // Reset bots
+            });
+
+            await updateDoc(gameRef, {
+                status: 'lobby',
+                activeEffects: [],
+                activeEvent: null,
+                startedAt: deleteField(),
+                endTime: deleteField(),
+                launchingAt: deleteField(),
+                currentRound: deleteField(),
+                ...resetPlayers
+            });
+        } catch (err) {
+            console.error("Return to lobby error:", err);
+            setError("Error al volver a la sala");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     // Helper to update global user stats (Only for Registered Users)
     const updateUserStats = async (finalScore) => {
         if (!user || user.isAnonymous) return;
@@ -1025,48 +1349,50 @@ export function useGameLogic() {
         }
     };
 
+
+
     return {
-    updateUserStats, // Added
-    user,
-    userStats,
-    username, setUsername,
-    needsUsername,
-    loginWithGoogle,
+    // Lobby Exports
+    lobbyMaxPlayers,
+    setLobbyMaxPlayers,
+    lobbyDurationMinutes,
+    setLobbyDurationMinutes,
+    lobbyNumberRange,
+    setLobbyNumberRange,
+    hostPlays,
+    setHostPlays,
+    copyCode,
+
+    // Practice Exports
+    practiceConfig,
+    setPracticeConfig,
+
+    // Extra Auth/Profile Exports
     loginWithApple,
     registerUsername,
-    logout,
-    cleanAnonymousUsers,
     uploadAvatar,
-    removeAvatar, // Added removeAvatar
-    loading, error,
-    
-    // Modes
-    activeGameId, setActiveGameId,
-    practiceMode,
-    gameData,
+    removeAvatar,
 
-    // Inputs
-    gameIdInput, setGameIdInput,
-    
-    // Configs
-    lobbyMaxPlayers, setLobbyMaxPlayers,
-    lobbyDurationMinutes, setLobbyDurationMinutes,
-    lobbyNumberRange, setLobbyNumberRange,
-    hostPlays, setHostPlays,
-    practiceConfig, setPracticeConfig,
-
-    // Actions
+    // Existing Exports
+    updateUserStats, 
+    user,
+    username,
+    setUsername,
+    needsUsername,
+    userStats, 
+    gameIdInput,
+    setGameIdInput,
+    error,
+    loading,
     createGame,
     joinGame,
-    enterPracticeMode,
+    loginWithGoogle,
     startGame,
+    activeGameId,
+    gameData,
+    timeLeft,
     handleAnswer,
     exitGame,
-    copyCode,
-    sendReaction,
-    
-    // State
-    timeLeft,
     formatTime: (s) => {
         if (s === undefined || s === null) return "0:00";
         const m = Math.floor(s / 60);
@@ -1078,10 +1404,16 @@ export function useGameLogic() {
     combo,
     toggleTeamMode,
     switchTeam,
-    // Chaos Mode Exports
     chaosMode,
     setChaosMode,
     chaosFrequency,
-    setChaosFrequency
+    setChaosFrequency,
+    powerUp,
+    activeEffects,
+    launchAttack,
+    addBot,
+    removeBot,
+    returnToLobby,
+    sendReaction
   };
 }
