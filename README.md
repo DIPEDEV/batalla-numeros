@@ -3,12 +3,9 @@ Aplicación hecha especialmente con simplicidad y competitividad. Uso de Online,
 
 ## ¿Cómo Jugar?
 Al entrar al menú principal, debes ingresar un nombre de usuario (nickname) en la entrada de texto superior, posteriormente deberas elegir entre 3 opciones:
-- 1: Modo Práctica
+- 1: Modo Práctica (Broken)
 - 2: Partida Grupal
 - 3: Código (Partida ya existente)
-
-### Modo Práctica
-En este modo deberás elegir la dificultad del juego, mismas cuales ya hay en el modo grupal. Además contamos con
 
 ## Development
 
