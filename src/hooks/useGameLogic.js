@@ -1389,10 +1389,13 @@ export function useGameLogic() {
     loginWithGoogle,
     startGame,
     activeGameId,
+    setActiveGameId, // Added export
     gameData,
     timeLeft,
     handleAnswer,
     exitGame,
+    enterPracticeMode, // Added export
+    logout, // Added export
     formatTime: (s) => {
         if (s === undefined || s === null) return "0:00";
         const m = Math.floor(s / 60);
